@@ -1,0 +1,1419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Family wheel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+  :root { --ink:#2b2622; --muted:#7a7068; --faint:#a89e93; --rule:#ddd4c8; --bg:#fbf8f2; --paper:#fffdf8; --card:#f5f0e7;
+          --accent:#5b3f1e; --link:#2a5d8f; --dw:min(560px, 42vw); --top:46px; --sheet:56dvh;
+          --serif:Baskerville, "Hoefler Text", "Iowan Old Style", Georgia, serif; --sans:-apple-system, system-ui, "Helvetica Neue", sans-serif; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.45 var(--serif); overflow:hidden; }
+  button, select, input { font:13px var(--sans); color:var(--ink); }
+  a { color:var(--link); }
+
+  /* top bar */
+  #top { position:fixed; inset:0 0 auto 0; height:var(--top); box-sizing:border-box; display:flex; gap:10px; align-items:center; padding:0 14px;
+         background:var(--paper); border-bottom:1px solid var(--rule); z-index:6; font:13px var(--sans); }
+  #brand { font:600 15px var(--serif); letter-spacing:.01em; white-space:nowrap; cursor:pointer; }
+  #find { position:relative; }
+  #q { width:250px; padding:6px 10px; border:1px solid var(--rule); border-radius:16px; background:var(--bg); outline:none; }
+  #q:focus { border-color:#b9a990; background:#fff; }
+  #results { position:absolute; top:34px; left:0; width:min(360px, 92vw); max-height:60vh; overflow:auto; background:#fff; border:1px solid var(--rule);
+             border-radius:8px; box-shadow:0 8px 24px #0002; display:none; z-index:7; }
+  #results.open { display:block; }
+  #results div { padding:6px 10px; cursor:pointer; border-bottom:1px solid #f1ece4; }
+  #results div.on, #results div:hover { background:#f6efe2; }
+  #results b { font:15px var(--serif); } #results small { display:block; color:var(--muted); }
+  .seg { display:flex; border:1px solid var(--rule); border-radius:6px; overflow:hidden; }
+  .seg button { border:0; background:var(--paper); padding:5px 9px; cursor:pointer; border-left:1px solid var(--rule); }
+  .seg button:first-child { border-left:0; }
+  .seg button:hover { background:#f3ecdf; }
+  #hint { color:var(--muted); margin-left:auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:6px; }
+  #hint kbd { font:11px var(--sans); border:1px solid var(--rule); border-radius:3px; padding:0 4px; background:var(--bg); }
+  #hint button { border:0; background:none; color:var(--faint); cursor:pointer; font-size:15px; }
+  body.nohint #hint { display:none; }
+
+  /* wheel and minimap */
+  #wheel { position:fixed; top:var(--top); left:0; width:100vw; height:calc(100vh - var(--top)); height:calc(100dvh - var(--top)); display:block; touch-action:none; user-select:none; -webkit-user-select:none;
+           transition:width .28s ease; }
+  body.panel #wheel { width:calc(100vw - var(--dw)); }
+  text { pointer-events:none; }
+  #wheel { cursor:grab; } #wheel.grabbing, #wheel.grabbing path { cursor:grabbing !important; }
+  path.cell { stroke:var(--paper); stroke-width:1; cursor:pointer; transition:filter .15s; }
+  path.cell.unv { stroke:#b9ad9c; stroke-dasharray:3 2.5; stroke-width:.8; }
+  path.cell:hover { filter:brightness(1.06) saturate(1.1); }
+  .hub { cursor:pointer; }
+  #nav { position:fixed; top:calc(var(--top) + 12px); left:12px; width:clamp(160px, 10vw, 230px); z-index:2; font:12px var(--sans); color:var(--muted);
+         background:#fffdf8e6; border:1px solid var(--rule); border-radius:8px; padding:8px 10px 10px; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+  #mini { width:100%; aspect-ratio:1; height:auto; display:block; cursor:pointer; }
+  #crumb { margin-top:6px; line-height:1.5; }
+  #crumb .plink { color:var(--ink); text-decoration:none; } #crumb .plink:hover { text-decoration:underline; }
+  #crumb .gen { display:block; margin-top:4px; color:var(--faint); }
+
+  /* the key, which is also the control: touch an entry to spotlight it */
+  #key { margin-top:8px; border-top:1px solid var(--rule); padding-top:6px; }
+  #key > summary { cursor:pointer; list-style:none; font:600 10.5px var(--sans); letter-spacing:.07em; text-transform:uppercase; color:var(--muted); padding:2px 0; }
+  #key > summary::-webkit-details-marker { display:none; }
+  #key > summary::after { content:"›"; float:right; transition:transform .15s; } #key[open] > summary::after { transform:rotate(90deg); }
+  #keyb { max-height:min(46vh, 430px); overflow:auto; margin-right:-4px; padding-right:4px; }
+  #keyb h5 { margin:8px 0 3px; font:600 10px var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
+  #keyb button { display:flex; align-items:center; gap:6px; width:100%; border:0; background:none; padding:2px 3px; border-radius:4px; font:11.5px/1.35 var(--sans); color:var(--ink); text-align:left; cursor:pointer; }
+  #keyb button:hover { background:#f3ecdf; } #keyb button.on { background:#5b3f1e; color:#fff; }
+  #keyb button i { flex:none; width:13px; height:13px; border-radius:3px; } #keyb button small { margin-left:auto; color:var(--faint); } #keyb button.on small { color:#ecdfca; }
+  #keyb i.unv { box-sizing:border-box; border:1px dashed #b9ad9c; } #keyb i.br { border:1.5px solid #8a7a66; border-bottom:0; height:6px; border-radius:0; box-sizing:border-box; }
+  #spot { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:3; background:#2b2622ee; color:#fffdf8; border-radius:18px; padding:7px 8px 7px 15px; font:13px var(--sans);
+          display:none; align-items:center; gap:10px; max-width:min(78vw, 640px); box-shadow:0 6px 20px #0003; }
+  #spot.on { display:flex; } #spot span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #spot button { border:0; border-radius:12px; padding:4px 10px; background:#fffdf826; color:inherit; font:12px var(--sans); cursor:pointer; }
+  body.panel #spot { left:calc((100vw - var(--dw)) / 2); }
+  .bk { pointer-events:none; }
+
+  /* stories in the panel */
+  .st-list { display:flex; flex-direction:column; gap:1px; }
+  .st-row { display:flex; gap:10px; align-items:baseline; padding:7px 2px; border-bottom:1px solid #efe8dc; cursor:pointer; font:15px/1.3 var(--serif); }
+  .st-row:hover { background:#f8f2e7; } .st-row i { flex:none; width:8px; height:8px; border-radius:50%; align-self:center; }
+  .st-row small { margin-left:auto; flex:none; font:11px var(--sans); color:var(--faint); }
+  .st-via { margin:10px 0 2px; font:12px var(--sans); color:var(--muted); }
+  details.st-more > summary { cursor:pointer; list-style:none; padding:8px 2px; font:12.5px var(--sans); color:var(--link); } details.st-more > summary::-webkit-details-marker { display:none; }
+  details.st-more[open] > summary { display:none; }
+  .reader h2 { margin:.1em 0 .25em; }
+  .reader h2::after { content:""; display:block; width:52px; height:2.5px; margin-top:7px; background:var(--st-tint, var(--rule)); border-radius:1px; }
+  .reader .proof { font:12px/1.4 var(--sans); color:var(--muted); margin:0 0 12px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+  .reader .proof b { display:inline-block; padding:2px 8px; border-radius:3px; background:#e8dfcf; color:var(--ink); font-weight:500; font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
+  .reader .loc-pill { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:#544b43; }
+  .reader .loc-ico { display:inline-block; flex:none; }
+  .reader .bar { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; } .reader .bar button { border:1px solid var(--rule); background:var(--card); border-radius:14px; padding:4px 12px; font:12.5px var(--sans); cursor:pointer; }
+  .reader .bar button:hover { border-color:#a8977f; }
+  .reader figure { margin:14px 0; } .reader figure img { display:block; max-width:100%; margin:0 auto; padding:4px; background:#fffdf9; border:1px solid #d5cab8; box-sizing:border-box; box-shadow:0 1px 4px rgba(43,38,34,.08); cursor:zoom-in; min-height:60px; }
+  .reader figcaption { font:italic 13px/1.4 var(--serif); color:var(--muted); margin-top:6px; text-align:center; } .reader figcaption p { margin:0; }
+  .reader .story { font-size:16px; line-height:1.62; }
+  .reader .story > p:first-of-type::first-letter { float:left; font-size:2.6em; line-height:.85; padding-right:6px; padding-top:2px; color:var(--st-tint, var(--ink)); }
+  .reader .ev-box { margin-top:14px; padding:10px 14px; background:#faf7f1; border-left:3px solid var(--st-tint, var(--rule)); font:13px/1.45 var(--sans); color:#5b524a; }
+  .reader .ev-box b { color:var(--ink); font-weight:600; font-size:11.5px; letter-spacing:.04em; text-transform:uppercase; margin-right:5px; }
+  .reader table { border-collapse:collapse; font-size:13.5px; margin:10px 0; width:100%; } .reader td { border-bottom:1px solid #e6ddd0; padding:4px 8px 4px 0; vertical-align:top; }
+  .reader .ppl { margin-top:16px; padding-top:10px; border-top:1px solid var(--rule); font-size:14px; line-height:1.7; }
+
+  /* side panel */
+  #panel { position:fixed; top:var(--top); right:0; bottom:0; width:var(--dw); box-sizing:border-box; background:var(--paper); border-left:1px solid var(--rule);
+           overflow:auto; padding:16px 20px 48px; z-index:3; transform:translateX(102%); visibility:hidden;
+           transition:transform .28s ease, visibility 0s linear .28s; box-shadow:-6px 0 18px #0000; }
+  body.panel #panel { transform:none; visibility:visible; transition:transform .28s ease; box-shadow:-6px 0 18px #0000000d; }
+  .x { float:right; cursor:pointer; font:20px var(--sans); color:var(--faint); border:0; background:none; margin:-4px -6px 0 8px; }
+  .x:hover { color:var(--ink); }
+  .ph { display:flex; gap:14px; align-items:flex-start; }
+  .ph img { width:76px; height:92px; object-fit:cover; border-radius:4px; border:1px solid var(--rule); flex:none; cursor:pointer; }
+  .kicker { font:600 11px var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .kicker.rel { font:13px var(--sans); letter-spacing:0; text-transform:none; }
+  #panel h2 { margin:.1em 0 0; font-size:25px; line-height:1.15; font-weight:normal; }
+  .sub { color:var(--muted); font:13px var(--sans); margin-top:2px; }
+  /* the summary card: vitals, family links, work, the story's opening */
+  .sum { background:var(--card); border-radius:10px; padding:10px 14px 12px; margin:12px 0 4px; }
+  .vit { display:grid; grid-template-columns:72px 1fr; gap:10px; margin:4px 0; line-height:1.4; }
+  .vit > b { font:600 10.5px/1.95 var(--sans); color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .vit .sep { color:var(--faint); }
+  .vit .plink { color:var(--ink); text-decoration:underline; text-decoration-color:#cbbfae; text-underline-offset:2px; }
+  .vit .plink:hover { color:var(--link); text-decoration-color:currentColor; }
+  .lk.alt .plink { color:var(--muted); }
+  .vit > span { min-width:0; overflow-wrap:break-word; }
+  .cd { display:inline-block; width:7px; height:7px; border-radius:50%; margin:0 0 1px 5px; vertical-align:middle; background:#d8d0c3; }
+  .cd.confirmed { background:#3d6b3d; } .cd.probable { background:#8db37e; }
+  .cd.possible { background:transparent; box-shadow:inset 0 0 0 1.5px #b59f74; } .cd.family-lore { background:#c79bc7; }
+  .qual { font:italic 12px var(--sans); color:var(--faint); margin-left:3px; }
+  .lede { margin-top:9px; padding-top:9px; border-top:1px solid #e6ddd0; line-height:1.5; }
+  /* the family-history books and posters on the four grandparents */
+  .eds h3 { margin-top:1.1em; }
+  .gtiles { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .ed { border:1px solid var(--rule); background:var(--card); border-radius:10px; overflow:hidden; cursor:pointer; display:flex; flex-direction:column; }
+  .ed:hover { border-color:#a8977f; box-shadow:0 4px 14px #0000001f; }
+  .ed .gim { height:168px; display:flex; align-items:center; justify-content:center; padding:14px; box-sizing:border-box; background:#ece4d6; }
+  .ed .gim img { max-width:100%; max-height:100%; box-shadow:0 2px 10px #3b2a1430; background:#fff; border-radius:2px; }
+  .ed .gcap { padding:8px 10px 10px; font:12px/1.35 var(--sans); color:var(--muted); display:flex; flex-direction:column; gap:3px; flex:1; }
+  .ed .gcap b { font:15px/1.25 var(--serif); color:var(--ink); font-weight:normal; }
+  .ed .gcap a { margin-top:auto; padding-top:3px; }
+  h3 { margin:1.3em 0 .5em; font:600 11px var(--sans); letter-spacing:.07em; text-transform:uppercase; color:var(--muted); }
+  h3 span { font-weight:400; }
+  .recs { display:grid; grid-template-columns:repeat(auto-fill, minmax(122px, 1fr)); gap:10px; }
+  .rec { cursor:pointer; border:1px solid var(--rule); background:var(--card); border-radius:6px; overflow:hidden; font:11.5px/1.3 var(--sans); }
+  .rec:hover { border-color:#a8977f; box-shadow:0 3px 10px #0002; }
+  .rec .im { height:118px; background:#e9e1d4 center/cover no-repeat; position:relative; }
+  .recs.lead .rec:first-child { grid-column:span 2; grid-row:span 2; display:flex; flex-direction:column; }
+  .recs.lead .rec:first-child .im { flex:1; min-height:200px; background-position:center top; }
+  .recs.lead .rec:first-child .cap { font-size:12.5px; }
+  .rec .pg { position:absolute; right:5px; bottom:5px; background:#000a; color:#fff; padding:0 5px; border-radius:3px; font-size:10.5px; }
+  .rec .cap { padding:5px 7px 7px; color:#4a423b; }
+  details.phs > summary { cursor:pointer; list-style:none; font:12.5px/1 var(--sans); color:var(--muted); padding:12px 0 4px; }
+  details.phs > summary::-webkit-details-marker { display:none; }
+  details.phs[open] > summary { display:none; }
+  details.phs > .recs { margin-top:10px; }
+  .recs.photos .cap { color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; padding-bottom:0; margin-bottom:7px; }
+  .rec .cap b { display:block; color:var(--ink); font-weight:600; }
+  .fact { margin:.35em 0; font-size:14px; }
+  .fact.alt { opacity:.55; }
+  .note { color:var(--muted); font:12.5px/1.45 var(--sans); }
+  .tag { font:10.5px var(--sans); padding:0 6px; border-radius:8px; background:#e6e1d8; color:#5a524a; margin-left:4px; white-space:nowrap; }
+  .chip { display:inline-block; font:10.5px var(--sans); background:#efe9df; border:1px solid var(--rule); border-radius:4px; padding:0 4px; margin:0 1px; cursor:pointer; vertical-align:1px; }
+  .chip.img { background:#e3ecf5; border-color:#9bb3cc; }
+  .plink { color:var(--link); cursor:pointer; }
+  .plink:hover { text-decoration:underline; }
+  /* Full story and Facts: collapsed toggles at the foot of the summary card, opening in place */
+  .sum details.more { border-top:1px solid #e6ddd0; }
+  .sum .vit + details.more, .sum .lede + details.more { margin-top:9px; }
+  .sum > details.more:first-child { border-top:0; }
+  .sum:has(details.st[open]) .lede { display:none; }      /* the open story starts with the same lines */
+  .sum details.more summary { cursor:pointer; font:600 10.5px var(--sans); letter-spacing:.07em; text-transform:uppercase; color:var(--muted);
+    padding:9px 0 8px; list-style:none; display:flex; align-items:center; gap:7px; -webkit-user-select:none; user-select:none; }
+  .sum details.more summary span { font-weight:400; letter-spacing:.03em; }
+  .sum details.more summary::-webkit-details-marker { display:none; }
+  .sum details.more summary::before { content:"›"; font:15px/1 var(--sans); color:var(--faint); transition:transform .15s; width:9px; text-align:center; }
+  .sum details.more[open] summary::before { transform:rotate(90deg); }
+  .sum details.more summary:hover { color:var(--ink); }
+  .sum details.more:last-child summary { padding-bottom:0; } .sum details.more[open]:last-child summary { padding-bottom:8px; }
+  .sum .story, .sum .facts { padding:2px 0 10px; }
+  .sum .story { font-size:15px; line-height:1.55; } .sum .story p:first-child { margin-top:0; }
+  .sum .facts .fact { padding:5px 0; margin:0; border-top:1px solid #ece4d8; font-size:13.5px; line-height:1.45; }
+  .sum .facts .fact:first-child { border-top:0; padding-top:0; }
+  .fact .cd { margin-left:2px; }
+  .story p { margin:.55em 0; } .story h4 { font:600 13px var(--sans); margin:1em 0 .3em; }
+
+  /* record viewer */
+  #viewer { position:fixed; inset:0; background:#1b1917; z-index:10; display:none; grid-template-columns:1fr min(440px, 36vw); grid-template-rows:1fr 92px; color:#eee; }
+  #viewer.open { display:grid; }
+  #stage { grid-column:1; grid-row:1; position:relative; overflow:hidden; cursor:grab; background:#111; }
+  #stage.panning { cursor:grabbing; }
+  #stage img.full { position:absolute; left:0; top:0; transform-origin:0 0; user-select:none; -webkit-user-drag:none; max-width:none; opacity:0; transition:opacity .14s ease; }
+  #stage img.full.loaded { opacity:1; }
+  #stage .spin { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font:13px var(--sans); color:#ccc; background:#0009; padding:8px 14px; border-radius:16px; pointer-events:none; z-index:1; }
+  #stage iframe { width:100%; height:100%; border:0; background:#fff; }
+  #stage .nav { position:absolute; top:50%; transform:translateY(-50%); font:30px var(--sans); background:#0006; color:#fff; border:0; width:46px; height:76px; cursor:pointer; z-index:2; border-radius:4px; }
+  #stage .nav:hover { background:#000a; }
+  #stage .zoomtip { position:absolute; left:12px; bottom:10px; font:12px var(--sans); color:#bbb; background:#0008; padding:3px 8px; border-radius:4px; z-index:2; }
+  #stage .msg { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:#bbb; font:15px var(--sans); text-align:center; padding:40px; }
+  #stage .msg img { max-width:60%; max-height:60%; opacity:.85; }
+  #stage .msg a { color:#9cf; }
+  #vside { grid-column:2; grid-row:1 / span 2; background:var(--paper); color:var(--ink); overflow:auto; padding:16px 20px 30px; }
+  #vside h2 { font-size:20px; margin:.3em 0 .2em; font-weight:normal; line-height:1.25; }
+  #vside .shows { background:var(--card); border-radius:8px; padding:4px 12px; }
+  #vside .meta { display:grid; grid-template-columns:90px 1fr; gap:2px 10px; font:12.5px/1.5 var(--sans); margin:10px 0; }
+  #vside .meta b { color:var(--muted); font-weight:600; }
+  #vside pre { white-space:pre-wrap; font:13px/1.5 var(--serif); background:var(--card); padding:10px 12px; border-left:3px solid var(--rule); margin:0; }
+  #strip { grid-column:1; grid-row:2; display:flex; gap:6px; overflow-x:auto; padding:8px; background:#24211e; }
+  #strip div { flex:0 0 auto; width:66px; height:76px; background:#333 center/cover no-repeat; cursor:pointer; border:2px solid transparent; opacity:.7; border-radius:3px; }
+  #strip div.on { border-color:#e8c98a; opacity:1; }
+
+  /* the record viewer's own close button, and the pdf bar for touch screens */
+  #stage .vx { position:absolute; top:8px; right:8px; z-index:3; width:44px; height:44px; border-radius:22px; border:0; background:#0008; color:#fff; font:22px var(--sans); cursor:pointer; }
+  #stage .pdfbar { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:3; font:14px var(--sans); background:#000c; color:#ddd; padding:8px 14px; border-radius:20px; white-space:nowrap; }
+  #stage .pdfbar a { color:#9cf; }
+  #stage { touch-action:none; }
+
+  /* unlock screen (published copy only) and the Lock button */
+  #lock { position:fixed; inset:0; z-index:30; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:16px; }
+  #lock[hidden] { display:none; }
+  #lock form { width:min(340px, 100%); box-sizing:border-box; background:var(--paper); border:1px solid var(--rule); border-radius:12px; padding:30px 24px 22px; box-shadow:0 10px 30px #0000000f; text-align:center; }
+  #lock { background: radial-gradient(ellipse at 50% 35%, #fffdf8 0%, var(--bg) 55%, #efe8dc 100%); }
+  #lock form { padding:26px 28px 22px; border-radius:16px; box-shadow:0 18px 50px #3b2a1418; width:min(380px, 100%); }
+  #lock .lockfan { display:block; width:180px; margin:0 auto 10px; }
+  #lock h1 { font:normal 31px var(--serif); margin:0 0 4px; letter-spacing:.01em; }
+  #lock .lockby { margin:0 0 14px; font:14px var(--serif); font-style:italic; color:var(--muted); }
+  #lock .lockby a { color:inherit; text-decoration:none; border-bottom:1px solid var(--rule); }
+  #lock .locknote { margin:0 0 16px; font:13.5px var(--sans); color:var(--muted); line-height:1.4; }
+  #lock input[type=password] { width:100%; box-sizing:border-box; font:16px var(--sans); padding:12px; border:1px solid var(--rule); border-radius:8px; background:#fff; }
+  #lock label { display:flex; gap:8px; align-items:center; justify-content:center; margin:14px 0; font:15px var(--sans); color:var(--muted); }
+  #lock input[type=checkbox] { width:20px; height:20px; }
+  #lock button { width:100%; padding:12px; font:600 16px var(--sans); background:var(--accent); color:#fff; border:0; border-radius:8px; cursor:pointer; }
+  #lock button:disabled { opacity:.6; }
+  #lockmsg { min-height:1.4em; margin-top:12px; font:14px var(--sans); color:#a33; }
+  #lockmsg.busy { color:var(--muted); }
+  #bLock { border:1px solid var(--rule); border-radius:6px; background:var(--paper); padding:5px 10px; cursor:pointer; }
+  #bLock[hidden] { display:none; }
+
+  /* touch: the arrow pad under the wheel, large targets, no hover-only cues */
+  #pad { position:fixed; left:0; width:100vw; bottom:calc(8px + env(safe-area-inset-bottom)); z-index:2; display:none; justify-content:center; gap:8px; pointer-events:none; transition:width .28s ease; }
+  #pad button { pointer-events:auto; width:52px; height:48px; border:1px solid var(--rule); border-radius:12px; background:#fffdf8ee; font:20px var(--sans); color:var(--accent); box-shadow:0 2px 8px #0000000f; cursor:pointer; }
+  #pad button:active { background:#efe5d4; }
+  .hint-touch { display:none; }
+  @media (pointer:coarse) {
+    :root { --top:54px; }
+    #q { font-size:16px; }
+    #bLock { font-size:15px; padding:8px 8px; }
+    .x { font-size:26px; padding:6px 10px; }
+    .chip { padding:2px 6px; }
+    .hint-mouse { display:none; } .hint-touch { display:inline; }
+  }
+  @media (pointer:coarse), (max-width:900px) {
+    #pad { display:flex; }
+    .seg { display:none; }
+    body.panel #pad { width:calc(100vw - var(--dw)); }
+  }
+  @media (max-width:1100px) { #hint { display:none; } }
+  @media (max-width:1366px) { :root { --dw:min(440px, 42vw); } }
+  @media (max-width:700px) {
+    #top { gap:6px; padding:0 8px; }
+    #brand { display:none; }
+    #find { flex:1; min-width:0; } #q { width:100%; box-sizing:border-box; }
+    #key { display:none; } #nav { width:92px; padding:4px; top:calc(var(--top) + 8px); left:8px; } #crumb { display:none; }
+  }
+  /* the side panel becomes a bottom sheet on phones and on tablets held upright */
+  @media (max-width:700px), (max-width:1024px) and (orientation:portrait) {
+    #panel { top:auto; left:0; right:0; bottom:0; width:auto; height:var(--sheet); border-left:0; border-top:1px solid var(--rule);
+             border-radius:16px 16px 0 0; transform:translateY(102%); padding-top:0; padding-bottom:calc(48px + env(safe-area-inset-bottom)); box-shadow:0 -6px 18px #0000; transition:transform .28s ease, height .28s ease, visibility 0s linear .28s; }
+    body.panel #panel { box-shadow:0 -6px 18px #00000014; transition:transform .28s ease, height .28s ease; }
+    body.sheetfull { --sheet:calc(100dvh - var(--top) - 8px); }
+    body.panel #wheel { width:100vw; height:calc(100dvh - var(--top) - var(--sheet)); }
+    body.panel #pad { width:100vw; bottom:calc(var(--sheet) + 8px); }
+    body.panel #nav { display:none; }
+    .grab { display:flex !important; }
+    #viewer { grid-template-columns:1fr; grid-template-rows:minmax(0, 58dvh) 76px minmax(0, 1fr); }
+    #vside { grid-column:1; grid-row:3; }
+    #strip { grid-row:2; }
+  }
+  .grab { display:none; position:sticky; top:0; z-index:2; margin:0 -20px 4px; height:30px; align-items:center; justify-content:center; background:var(--paper); cursor:grab; touch-action:none; border-radius:16px 16px 0 0; }
+  .grab i { width:44px; height:5px; border-radius:3px; background:#cfc5b6; }
+</style>
+</head>
+<body>
+<div id="top">
+  <span id="brand" title="Back to the start"></span>
+  <div id="find"><input id="q" placeholder="Find anyone…" autocomplete="off" spellcheck="false"><div id="results"></div></div>
+  <div class="seg" title="Move around the wheel">
+    <button id="bHome" title="Back to the start (Home)">⌂</button>
+    <button id="bL" title="Previous in this generation (←)">←</button>
+    <button id="bUp" title="Parents: the father, or the mother if he is unknown (scroll up, ↑)">↑</button>
+    <button id="bDown" title="Child (scroll down, ↓)">↓</button>
+    <button id="bR" title="Next in this generation (→)">→</button>
+  </div>
+  <button id="bLock" hidden title="Forget the password on this device">Lock</button>
+  <span id="hint"><span class="hint-mouse">Scroll up for parents, down for the child · <kbd>←</kbd> <kbd>→</kbd> to turn · click a name</span><span class="hint-touch">Drag the wheel: pull down for parents, push up for the child, sideways to turn · tap a name</span><button title="Hide this hint">✕</button></span>
+</div>
+<svg id="wheel" aria-label="Family wheel"></svg>
+<div id="nav"><svg id="mini" viewBox="-80 -80 160 160" aria-label="Overview"></svg><div id="crumb"></div><details id="key"><summary>Key</summary><div id="keyb"></div></details></div>
+<div id="spot"><span></span><button data-unspot="1">Show everyone</button></div>
+<div id="panel"></div>
+<div id="viewer"><div id="stage"></div><div id="vside"></div><div id="strip"></div></div>
+<div id="pad"><button data-pad="L" title="Previous in this generation">◀</button><button data-pad="U" title="Parents">▲</button><button data-pad="H" title="Back to the start">⌂</button><button data-pad="D" title="Child">▼</button><button data-pad="R" title="Next in this generation">▶</button></div>
+<div id="lock" hidden><form id="lockf" autocomplete="on"><svg class="lockfan" viewBox="0 0 200 100" aria-hidden="true"><path d="M60.0,96.0A40,40 0 0 1 100.0,56.0L100.0,78.0A18,18 0 0 0 82.0,96.0Z" fill="#c9b48f" fill-opacity="0.95" stroke="#fffdf8" stroke-width="1.5"/><path d="M100.0,56.0A40,40 0 0 1 140.0,96.0L118.0,96.0A18,18 0 0 0 100.0,78.0Z" fill="#a9bfd6" fill-opacity="0.95" stroke="#fffdf8" stroke-width="1.5"/><path d="M36.0,96.0A64,64 0 0 1 54.7,50.7L70.3,66.3A42,42 0 0 0 58.0,96.0Z" fill="#c9b48f" fill-opacity="0.75" stroke="#fffdf8" stroke-width="1.5"/><path d="M54.7,50.7A64,64 0 0 1 100.0,32.0L100.0,54.0A42,42 0 0 0 70.3,66.3Z" fill="#9fb3a6" fill-opacity="0.75" stroke="#fffdf8" stroke-width="1.5"/><path d="M100.0,32.0A64,64 0 0 1 145.3,50.7L129.7,66.3A42,42 0 0 0 100.0,54.0Z" fill="#a9bfd6" fill-opacity="0.75" stroke="#fffdf8" stroke-width="1.5"/><path d="M145.3,50.7A64,64 0 0 1 164.0,96.0L142.0,96.0A42,42 0 0 0 129.7,66.3Z" fill="#d9aaa8" fill-opacity="0.75" stroke="#fffdf8" stroke-width="1.5"/><path d="M12.0,96.0A88,88 0 0 1 18.7,62.3L39.0,70.7A66,66 0 0 0 34.0,96.0Z" fill="#c9b48f" fill-opacity="0.5" stroke="#fffdf8" stroke-width="1.5"/><path d="M18.7,62.3A88,88 0 0 1 37.8,33.8L53.3,49.3A66,66 0 0 0 39.0,70.7Z" fill="#c9b48f" fill-opacity="0.5" stroke="#fffdf8" stroke-width="1.5"/><path d="M37.8,33.8A88,88 0 0 1 66.3,14.7L74.7,35.0A66,66 0 0 0 53.3,49.3Z" fill="#9fb3a6" fill-opacity="0.5" stroke="#fffdf8" stroke-width="1.5"/><path d="M66.3,14.7A88,88 0 0 1 100.0,8.0L100.0,30.0A66,66 0 0 0 74.7,35.0Z" fill="#9fb3a6" fill-opacity="0.5" stroke="#fffdf8" stroke-width="1.5"/><path d="M100.0,8.0A88,88 0 0 1 133.7,14.7L125.3,35.0A66,66 0 0 0 100.0,30.0Z" fill="#a9bfd6" fill-opacity="0.5" stroke="#fffdf8" stroke-width="1.5"/><path d="M133.7,14.7A88,88 0 0 1 162.2,33.8L146.7,49.3A66,66 0 0 0 125.3,35.0Z" fill="#a9bfd6" fill-opacity="0.5" stroke="#fffdf8" stroke-width="1.5"/><path d="M162.2,33.8A88,88 0 0 1 181.3,62.3L161.0,70.7A66,66 0 0 0 146.7,49.3Z" fill="#d9aaa8" fill-opacity="0.5" stroke="#fffdf8" stroke-width="1.5"/><path d="M181.3,62.3A88,88 0 0 1 188.0,96.0L166.0,96.0A66,66 0 0 0 161.0,70.7Z" fill="#d9aaa8" fill-opacity="0.5" stroke="#fffdf8" stroke-width="1.5"/><path d="M84,96A16,16 0 0 1 116,96Z" fill="#5b3f1e" fill-opacity=".85"/></svg><h1>Graham Family Tree</h1><p class="lockby">by Grayson Graham</p><p class="locknote">A private family history. Enter your password, or scan the code in your book.</p>
+  <input type="text" name="username" value="family" autocomplete="username" hidden>
+  <input type="password" id="pw" name="password" placeholder="Password" autocomplete="current-password" aria-label="Password">
+  <label><input type="checkbox" id="remember"> Remember on this device</label>
+  <button id="unlock">Unlock</button><div id="lockmsg" role="status"></div></form></div>
+
+<script>
+// The family wheel. Data: build/viewer.json (uv run tools/ft.py build; tools/viewer.py works out everything shown).
+// Thumbnails: build/thumbs (python3 tools/thumbs.py). Serve the repo root and open /site/proto/.
+// tools/publish_site.py copies this page into build/site/ for the web and sets VAULT: the data is then encrypted.
+const ROOT = "../../";
+const VAULT = {"v": 2, "salt": "DvPMUhdA0PIDn+6skxjUbA==", "iter": 1000000, "m": "3d6aff3d985f8a3be38e7e27e4df694d", "w": ["7xLH69ijRsfG3tXsU/MXpvx3BOtjVg6n5aBcYc0ulaeF8hxtOD/RCC/Vk4SQjNfVz5kEVnvlwwbsvKsq+1TbOTc=", "3bVGLBM1Mz3vScs6PEMv2xFkS6ZaY/SDG+8pvCifEf+ghX5wrUDB/6iRYSfJwuQhV71rqbHXotws7xDlrmcyQp4fdIVVOgk=", "Cq+5A2gbu8XGldb0WJ6nBrT+R5rtAyXyyxEQLJlFnZyo/kRswyuLIZmiBvhNjVsz60JlqRq56qEO423JquteiSM=", "py4OdI1sKwH49Kuf9n6YX+WFv1BA7qAVbzRUjKSeX2VCS5WabbjCbwYh6qY6wJJR3ebLn6qQwacBtz7MhAPLLxs=", "IAS4lcZH+QyNiJEoyBWswI1WJcdZg7tThFHO1DMuMJTdVPFzXgkSUSHgv+m32S91TqnynyQbsV0WoCbhCMxcIJo=", "7pgSovG2Ls2vLeVqRwWnwT/wKMB1faIN+OuDhV75BQlqouKtFhajpPjWCzgzPv1u/NzXy9vCXXXVMLMyts+P7XU=", "BODU9XEcFvihK7BFGg8cWCx+op4GkWKMSDf7VJOI3Er9YjF4CC0trxb79gVh9MQniqHpFZXSSs0L6PiCd1E69zI=", "XIiBy0IYtU4JzMGVInybaJpaV10sBxwK08xV1L7nfJG0PLZ+/nxG7zyFwiyAW19CW3W1TAAxO/xVq+lYCnd5+Hl6pG8D5rI=", "COB/5vlrCxx9QmFq8N9XWnGIpQQgiMdslgcFO3uUWeJynRX+RuXNrslzdMxFlCMcN5cqu8XyGxS84sIgd01QnFE=", "ODQlcW5x77hi7yTCnihKAcTogJM1ou+20SmYfQWkQaBlGMuh/CVfbOpkGv8PymbEMu+6KNzoHsc3nk0aBT0Otjs=", "sInk01pYXHnYes3BBHlpv98kb+lMUrn248qcNzRByTvFFt81hXJB4WU9EGgt1UwwxALdWPDMs5x9+dd2Jr7f/uY=", "WlIu64YB7Oj/sfqLYbebPRAi7KYix5Ecc0pTflEsDbv7vfUcOhAlIv3UXqZFy+FAiVmqHOv7g5W5aC21xuGu5IE=", "lOS+Ojm6tCVIj0BZBZaFYcFMP6W76GoVN3MGPjJeLa/ASpciF9O+jWLRXFrj9xDcRpYh41pbafYth94eJ17ZXd0=", "s1FJU9Uqda3phOLoPiRTHO8DyAuRq0DlY2+tPzBiX53l3cQGyS8qIbGmFqD6F1VJEl89FlwYF7+r4rLomlEByc4=", "/P0upyETSTzIyC1zZtOO0hsP3LBUuQB35+6wOD2liEKvrAr5Udl+ooGZUE/NfxbB+8Ymz120AUDQ8lnsZHVrdVk=", "NPZGejgfclzlthqloIi5LM000SHhNMSX0p7u6Xc5v1tchXJWQ3Gh2ZvhDkf8O8ap2eGFQ7DmADQ8h6AC3uTssGo=", "yz1Xr+60QbSZg0K9eE9qEuLS3z9V3QS9sYhNYf1PMxtCiiP3mOSUSuSHsoPMETh+es8FSEFTekl9fVw6FoPOXnM=", "Ln1SbRDLCJJEwDiFJkbuuikcNjydkTWb2Dz0xHU1tWL2MZX3xUcAYF/l4tC9GgxYCbWvjgIm5NhoQIkyWdlSLH8=", "kpCKxOFzbXuzoFeTXO/uQ5q06f6ChJ2LCVIZMPGS2oh8dQz6tTnuwBYMXgUn3E7VuOHYT3cf8e718MhCGVBM12cE8t8QvKY=", "M17Ha/lhJXUcY394SZQZYdjbbjhVMLTJrxas1Lz+DMYE+3tlb+13+dQ2JlQ/gL6zVkJnV5mdCNCTFDtLLfDXd2Y=", "DjydO3Q8gQOSQdFGSE1jjlWexAjwx457hvA7EyxnygK+OgBl6fuB1UMLBDdRpaOX1wlOjziEmz1HX69k1oSMJAk=", "tzaUPmdH7fXDXIS+4OQlSqPgaCoLnH09X4AJas0pvG6lrbZkPPBZDR++5c72h7zaDXOOGJ5cX5NE0gT4sntEbrA=", "m959E1FA8MkYNIQuMIrRFN1rPv9t++mjtQdik6Znv+ZORvGqs7Q+sCkK3gKScGHwhAPg+U3gDo5e8uXdOW2sfj0=", "23m7dRgUdSbgMdy6K2i3S76gkzQ52jlu4c4uPzsBMI0Snw8yUnHhVyaDFSN2Jfsw7AnRWERipnkvz2C2gkv08xA=", "XjUU9aYyopWQm5rrt3oo3EeaW2QFITFw/MU/nFxsJlvsPnI/A5mzAd0HJySgPWLRzvlage3VWfxHrZPd+xGBO9c=", "XuhoUbFZAMkZAPwK0dkxKZmSTN1PYoyOCEvrBOHW97o0FfBfqaUuJBGPFYsgS7GmsnwmcaP0XunkLIz6T9PqJ2Y=", "XAr2xtXAlJoJSCYBD8tFcA7ssZgMVLZP39b7MWnAPhOrv6Km31fD+5mTGtZP6sAEvcGT7SiGifnr/wVCSQmqMlw=", "fAHsuY7bDmA3QR4kc9yF0qNipcK9DfKbn4YU1RaLQk/p8xis35Kl1kh2luFG/3sZU3omSsJbBvgWwVpAumrJ2WY=", "Zo8dFsz1yMATMNlAwONLxEsqoFHQB8mjK9NNYc5acgqiOl3L/gR0MwrYGxO4m6UJ9ssTxz0MprB7KzH+3JZD158=", "8e5mm9pNiIvnigBuIxkCWZLcbT0C1fxu3bgclTLuVgjZpeksnhLeBR/HsBtyDBsEsstoO+s4c9Vppa2O0NU6zwY=", "UCUwBNdG8P20wvkSXEl6A/MaZuJzdCzOG9aPnt1BSkuga3IRIjcFeun6KVF2EWqXbeOlTLHxsf6ehD2u6+Tjy0U=", "/J5O+whpa/wm9Ob2LENvMzOe7mefp4Gunc51JUfvRlra480qEsuppdbgcQ0BIzU05VuVgzh6g7gAD4BPsqXxO/I=", "axBBhSLEJA1tSdGSpprdtSEKlr7wypwlJ0yZ4L03w7hfoUlFRpzDFfaMc6TvSzPJTK5xyP56Dpm1Br27vWnZz4g=", "T1Pf5gkC0Fnl7XLapllMoLmqhLkB+FDGQYHAQOmYYfhPE+YXXAR7szhIcxflaRL50KNvKQTD9EJzZQPk2J5FgIY=", "vOVSey+u3vAfYFjbrIqM9iaIGrsgyXC3/1m1PuaGI6JkkPqjeb0mtBXBJBb188x30Bvu40TYw8sPrQfv5NEQUE8=", "r47VFC9dZnIQSoNrcU0zLpHs5/R7qqxihhBydynhhwe5mEHyuMyeClExze6JJTy/W8a4VWjzQmmRxATtRNpfl9w=", "ntcFocpSyTXAqXE49ga4kOX7JLigPu1gSfHrgN9DofDVdcvVGDyVlokpb+tDxpDhwaQhrPLZLcj0GF68ElD/730=", "jXF/HYjljjZW8KH5VBMprtWGzijLKCbmvyTxnqOnB89gE4nGU4uKXyub9WhnSRnJH6ORyUTDXZ3tMm+d", "EKwK6MeuEvDF+nu5W5p2nBivlmokRZqrKmUsgwGFKqcDrcYsrDDeH3QL5FHfnt+KQ+NV1r1CAFIuyOEscVWpXTM=", "jF0z7PrGmM8/RLzeGn+Gl1T5MhqT4Dr7YjXJZtu88PaaBbAOSTvEgpbQrHSOMf9Dkhdu/ri4sOR7jqztHRbOlLo=", "HCyDy1Ht5cyCN+UtXRHU4RcW5X4sXnDjg6jPGH7K2vCNZVN5dMkZnYVXh+FnBOOmvd7G5FLI6S6HCmKIhIQGYKM=", "fzPWiSTIG/6dC0Hzjz2T9ZH6ESHidy4Sx3WSbMpnfyQjnff9L9ctBQVLT+uVjKmNerJCmkvdf5eKsF8qYUkXxQ8=", "OsOIrUBCZmj4+WiMjuaAfvgahFAUpeITh4h9M6KbIVYXeO6oeUn4eDexVFM12p9OVtT38/NwHTKaHemrjnLZvdA=", "CtsR0gGE1x5EBnnZHL+txjIswlTVnZr8IGkeeawx7OEjOKfE2vRcGLg4aI/RPURe0yHuWGrsABG5Hr55cYam5TQ=", "Py6cnKBGDHnHuIliCueLYeSsXx0ls0IjQNIEomPqpkb5Wi4Z5ydVJH0X86aJF8hmTIy6gPr2iyU0I7su4W+Tccg=", "02CL8RB2ZoM/8UkeFj4lPBucwg/REdbth/JUxAi4+WGIaA3A8ct2WomJydEUxYOOnKWLpBB+teIx2IM+TNlOhZo=", "4oEUL3NO9F/0DQ2nlZ2S/Yd+8Fqrr5PzcQr7xaODF4vNL4QoCFL4OXYg8+Pps/gnbGQQevqdT4StKPX4HrPWtxXqJv/diS8="]};
+
+// ---------- data access: everything the page reads goes through Data. Locally it fetches the plain files from the
+// repo; in the published copy it fetches data/<opaque>.bin and decrypts it (AES-256-GCM, key from the password).
+const Data = (() => {
+  const te = new TextEncoder(), td = new TextDecoder(), urls = new Map(), big = [];
+  const KEY = "wheel.key";
+  let aes = null, man = null, bundle = null;
+  const toB64 = u => btoa(String.fromCharCode(...u)), fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const keep = { get(k) { try { return sessionStorage.getItem(k) || localStorage.getItem(k); } catch { return null; } },
+    set(k, v, long) { try { (long ? localStorage : sessionStorage).setItem(k, v); } catch {} },
+    clear(k) { try { sessionStorage.removeItem(k); localStorage.removeItem(k); } catch {} } };
+  async function hmac(key, msg) {
+    const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    return new Uint8Array(await crypto.subtle.sign("HMAC", k, te.encode(msg)));
+  }
+  async function gunzip(u8) {
+    if (!window.DecompressionStream) throw new Error("This browser is too old to open the wheel (Safari 16.4 or later is needed).");
+    return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+  }
+  async function open(name) {
+    const r = await fetch(`data/${name}.bin`);
+    if (!r.ok) throw new Error(`data file missing (${r.status})`);
+    const b = new Uint8Array(await r.arrayBuffer());
+    return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.subarray(0, 12), additionalData: te.encode(name) }, aes, b.subarray(12)));
+  }
+  async function useMaster(master) {          // throws OperationError when the key is wrong
+    aes = await crypto.subtle.importKey("raw", await hmac(master, "ft-site/aes/v1"), "AES-GCM", false, ["decrypt"]);
+    man = JSON.parse(td.decode(await gunzip(await open(VAULT.m)))).f;
+  }
+  // the master key is kept several times in VAULT.w, each copy sealed under one password's or one QR code's key and
+  // holding the branch it opens (a person's ID; empty for the whole tree). Try this key on each: {master, branch}.
+  async function unwrap(raw) {
+    const k = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    for (const w of VAULT.w) {
+      const b = fromB64(w);
+      try {
+        const out = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.subarray(0, 12), additionalData: te.encode("ft-site/wrap/v2") }, k, b.subarray(12)));
+        return { master: out.subarray(0, 32), branch: td.decode(out.subarray(32)) };
+      } catch {}
+    }
+    throw Object.assign(new Error("no key"), { name: "OperationError" });
+  }
+  async function opened({ master, branch }, remember) {
+    await useMaster(master);
+    keep.clear(KEY); keep.set(KEY, JSON.stringify({ salt: VAULT.salt, k: toB64(master), b: branch }), remember);
+    return branch;
+  }
+  async function bytes(path) {
+    if (!VAULT) { const r = await fetch(ROOT + path); if (!r.ok) throw new Error(`${path}: ${r.status}`); return new Uint8Array(await r.arrayBuffer()); }
+    const e = man[path]; if (!e) throw new Error(`not in the web copy: ${path}`);
+    const b = await open(e[0]);
+    return e[1] === "application/gzip" ? gunzip(b) : b;
+  }
+  return {
+    // unlock with a password: PBKDF2-SHA256 (VAULT.iter rounds, VAULT.salt) opens one copy of the master key; the
+    // branch it holds comes back ("" for the whole tree). Remembered for the session, or on this device.
+    async unlock(pw, remember) {
+      const base = await crypto.subtle.importKey("raw", te.encode(pw), "PBKDF2", false, ["deriveBits"]);
+      const raw = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: fromB64(VAULT.salt), iterations: VAULT.iter }, base, 256));
+      return opened(await unwrap(raw), remember);
+    },
+    // unlock with the secret a QR code carries after #k= (random, so no stretching): HMAC-SHA256(secret, label)
+    async unlockCode(code) {
+      const raw = fromB64(code.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((code.length + 3) % 4));
+      return opened(await unwrap(await hmac(raw, "ft-site/qr/v2")), true);
+    },
+    async resume() {                            // a key kept from earlier in this session (or on this device): its branch, or null
+      try { const x = JSON.parse(keep.get(KEY) || "null"); if (!x || x.salt !== VAULT.salt) return null; await useMaster(fromB64(x.k)); return x.b || ""; }
+      catch { keep.clear(KEY); return null; }
+    },
+    lock() { keep.clear(KEY); location.reload(); },
+    has: path => !VAULT || !!man?.[path],
+    async json(path) { return JSON.parse(td.decode(await bytes(path))); },
+    async text(path) {
+      if (VAULT && path.startsWith("transcripts/")) { bundle ??= this.json("transcripts.bundle"); return (await bundle)[path] ?? ""; }
+      return td.decode(await bytes(path));
+    },
+    // a URL for an image, PDF or transcript: the plain file locally, a blob URL in the published copy (cached;
+    // thumbnails are kept, the last 24 full-size files)
+    url(path) {
+      if (!path) return Promise.reject(new Error("no file"));
+      if (!VAULT) return Promise.resolve(ROOT + path);
+      let u = urls.get(path);
+      if (!u) {
+        const tr = path.startsWith("transcripts/");
+        u = (tr ? this.text(path).then(t => new Blob([t], { type: "text/plain;charset=utf-8" }))
+                : bytes(path).then(b => new Blob([b], { type: man[path][1] }))).then(b => URL.createObjectURL(b));
+        u.catch(() => { urls.delete(path); const idx = big.indexOf(path); if (idx >= 0) big.splice(idx, 1); });
+        urls.set(path, u);
+        if (!/^build\/(thumbs|portraits)\//.test(path)) {
+          big.push(path);
+          if (big.length > 24) { const old = big.shift(); const o = urls.get(old); urls.delete(old); o?.then(x => setTimeout(() => URL.revokeObjectURL(x), 5000)); }
+        }
+      } else {
+        const idx = big.indexOf(path);
+        if (idx >= 0) { big.splice(idx, 1); big.push(path); }
+      }
+      return u;
+    },
+  };
+})();
+// Images load lazily: elements carry data-bg (a background), data-img (an <img> src) or data-href (a link) with the
+// logical path; hydrate() fills images as they come near the screen, and links decrypt on demand when clicked.
+const io = "IntersectionObserver" in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { io.unobserve(e.target); fill(e.target); } }), { rootMargin: "400px" }) : null;
+function fill(el) {
+  const d = el.dataset, no = () => {};
+  if (d.bg) Data.url(d.bg).then(u => { el.style.backgroundImage = `url("${u}")`; }, no);
+  if (d.img) Data.url(d.img).then(u => { el.src = u; }, no);
+  if (d.href && !VAULT) el.href = ROOT + d.href;
+}
+function hydrate(root) { root.querySelectorAll("[data-bg],[data-img],[data-href]").forEach(el => io && !el.dataset.href ? io.observe(el) : fill(el)); }
+const FONT = 'Baskerville, "Hoefler Text", "Iowan Old Style", Georgia, serif';
+const TINT = { confirmed: 1, probable: 1, possible: 0.42, "family-lore": 0.42 }, UNCHECKED = 0.16;   // as tools/palette.py
+let D, P, S, A, NUM = {}, PAL = {}, maxGen = 1;
+let focus = 2, view = { c: 0.25, w: 1, g: -1 }, anim = null, spot = null, selNum = null, cur = null;
+const svg = document.getElementById("wheel");
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const safeUrl = u => /^https?:\/\//i.test(u || "") ? u : "";
+const gen = n => 31 - Math.clz32(n);
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const shortName = id => { const p = P[id]; return p ? `${p.gv[p.gv.length > 2 ? p.gv.length - 2 : 0]} ${p.sur}`.trim() : id; };
+// ---------- a branch: precomputed by tools/viewer.py in D.branches; opened by a branch's password or QR code
+let BR = null;
+const okNum = n => !BR || BR.nums.has(n), okId = id => !BR || BR.ids.has(id);
+const who = n => BR?.stand === n ? BR.pid : A[n].id;          // the person shown at wheel number n
+function setBranch(pid) {
+  const pre = D.branches?.[pid];
+  if (pre) { BR = { ...pre, nums: new Set(pre.nums), ids: new Set(pre.ids) }; return; }
+  const pids = String(pid || "").split(",").map(s => s.trim()).filter(id => P[id]);
+  if (!pids.length) return;
+  const p = P[pids[0]], top = p.num; if (!top) return;
+  const nums = new Set(Object.keys(A).map(Number).filter(n => inLine(n, top))), ids = new Set([...nums].map(n => A[n].id));
+  BR = { pid: pids[0], label: shortName(pids[0]), top, home: top, nums, ids, stand: null };
+}
+// ---------- on-demand shards: shell loads first (~83 KB gz); person, source and story details stream in as needed
+const PSH = {}, SSH = {}; let STSH = null, ST_BY = new Map();
+const bucket = (id, n) => { const m = String(id || "").match(/\d+/); return m ? (+m[0]) % n : 0; };
+async function ensureSources(sids) {
+  if (!D.shards) return;
+  const need = new Set();
+  for (const sid of sids) if (sid && !S[sid]) need.add(bucket(sid, D.shards.s));
+  if (!need.size) return;
+  await Promise.all([...need].map(b => (SSH[b] ??= Data.json(`build/shards/s${b}.json`).then(d => Object.assign(S, d), () => {}))));
+}
+async function ensurePerson(id) {
+  const p = P[id]; if (!p || !D.shards || p._ready) return;
+  if (!p.fam) {
+    const b = p.pb ?? bucket(id, D.shards.p);
+    await (PSH[b] ??= Data.json(`build/shards/p${b}.json`).then(d => { for (const [k, v] of Object.entries(d)) if (P[k]) Object.assign(P[k], v); }, () => {}));
+  }
+  const sids = new Set([...(p.recs || []).map(r => r.s), ...(p.other || []), ...(p.media || []).map(m => m.s), p.pfrom?.s]);
+  for (const f of p.facts || []) for (const c of f.src || []) sids.add(c[0]);
+  for (const blk of p.story || []) for (const x of Array.isArray(blk) ? blk : (blk.ul || []).flat()) if (x?.c) for (const c of x.c) sids.add(c[0]);
+  await ensureSources(sids);
+  p._ready = true;
+}
+async function ensureStory(sid) {
+  if (!D.shards) return ST_BY.get(sid);
+  if (!ST_BY.get(sid)?.text) {
+    await (STSH ??= Data.json("build/shards/stories.json").then(d => {
+      for (const [k, v] of Object.entries(d)) ST_BY.set(k, Object.assign(ST_BY.get(k) || {}, v));
+    }, () => {}));
+  }
+  const st = ST_BY.get(sid);
+  if (st?.text) {
+    const sids = new Set();
+    for (const blk of st.text) for (const x of Array.isArray(blk) ? blk : (blk.ul || []).flat()) if (x?.c) for (const c of x.c) sids.add(c[0]);
+    await ensureSources(sids);
+  }
+  return st;
+}
+
+// ---------- colors
+const tint = ([r, g, b], f) => `rgb(${[r, g, b].map(v => Math.round(255 - (255 - v) * f)).join(",")})`;
+function cellColor(num, info) {
+  const p = P[info.id];
+  return tint(PAL[num >> Math.max(0, gen(num) - 4)] || [215, 205, 190], p.unv ? UNCHECKED : TINT[info.conf] ?? 0.4);
+}
+
+// ---------- text fitting: measure with the page's own font, then pick the longest name form that fits
+const mctx = document.createElement("canvas").getContext("2d"), WC = new Map();
+function tw(s, style = "") {          // width of s at a 1px font size
+  const k = style + "|" + s; let v = WC.get(k);
+  if (v === undefined) { mctx.font = `${style} 100px ${FONT}`; v = mctx.measureText(s).width / 100; WC.set(k, v); }
+  return v;
+}
+// Lines for one tile: [{t, s: size, st: style, fill}] or null if the surname cannot fit at this size.
+function layout(p, nl, fs, along) {
+  const fits = (t, size, st = "") => tw(t, st) * size <= along;
+  let sur = p.sur;
+  if (!fits(sur, fs, "bold")) return null;
+  const g = p.gv.find(x => fits(x, fs)) ?? "";
+  if (nl === 1) {
+    const one = p.gv.map(x => `${x} ${sur}`).find(x => fits(x, fs, "bold"));
+    return [{ t: one || sur, s: fs, st: "bold" }];
+  }
+  const L = g ? [{ t: g, s: fs }, { t: sur, s: fs, st: "bold" }] : [{ t: sur, s: fs, st: "bold" }];
+  const xs = fs * 0.78, rec = p.nrec ? `▣ ${p.nrec}` : "", muted = "#6f655c";
+  const nee = p.nee ? { t: `née ${p.nee}`, s: xs, st: "italic", fill: muted } : null, extra = [];
+  const both = [p.yrs, rec].filter(Boolean).join("   ");
+  if (both && fits(both, xs)) extra.push({ t: both, s: xs, fill: muted, rec });
+  else { if (p.yrs) extra.push({ t: p.yrs, s: xs, fill: muted }); if (rec) extra.push({ t: rec, s: xs, fill: "#2f5b86" }); }
+  if (nee) extra.splice(nl - L.length > extra.length ? 0 : extra.length, 0, nee);   // the dates outrank the maiden name
+  for (const e of extra) if (L.length < nl && fits(e.t, e.s, e.st)) L.push(e);
+  const i = L.indexOf(nee);                                                          // née sits under the surname
+  if (i > -1) { L.splice(i, 1); L.splice(L.findIndex(x => x.st === "bold") + 1, 0, nee); }
+  return L;
+}
+// av: a portrait URL for the centered tile: a small round picture beside the name, if the tile is wide enough
+function cellText(p, r1, r2, am, span, cap = 17, av = null) {
+  const rm = (r1 + r2) / 2, L = rm * span * Math.PI / 180 - 4, h = r2 - r1 - 6;
+  if (Math.min(L, h) < 7) return "";
+  const tang = L >= h * 0.9, dA = Math.min(h * 0.62, 72), gap = dA * 0.22;
+  if (av && !(tang && L * 0.9 > dA * 5)) av = null;
+  const along = (tang ? L : h) * 0.9 - (av ? dA + gap : 0), across = (tang ? h : L) * 0.94;
+  let best = null;
+  for (let nl = 5; nl >= 1 && !best; nl--) {
+    let fs = Math.min(cap, across / (nl * 1.16));
+    if (fs < 7) continue;
+    const sf = along / tw(p.sur, "bold");               // shrink a little for a long surname before dropping lines
+    if (sf < fs) fs = Math.max(sf, fs * (nl <= 2 ? 0.5 : 0.8), 7);
+    const lines = layout(p, nl, fs, along);
+    if (lines && (fs >= Math.max(9.5, cap * 0.55) || nl <= 2)) best = lines;
+  }
+  if (!best) {
+    let fs = Math.max(7, Math.min(10, across / 1.2)); const snug = along / tw(p.sur, "bold");
+    if (snug < fs && snug >= 5.2) fs = snug;
+    const max = snug >= fs ? p.sur.length : Math.max(2, Math.floor(along / (fs * 0.55)));
+    best = [{ t: p.sur.length > max ? p.sur.slice(0, max - 1) + "…" : p.sur, s: fs, st: "bold" }];
+  }
+  const H = best.reduce((a, l) => a + l.s * 1.16, 0);
+  const rot = tang ? am : (am >= 0 ? am - 90 : am + 90), at = `translate(${pt(rm, am).map(v => v.toFixed(1)).join(",")}) rotate(${rot.toFixed(2)})`;
+  let x = 0, pic = "";
+  if (av) {          // the name block and the picture side by side, centered together
+    const wB = Math.max(...best.map(l => tw(l.t, l.st || "") * l.s)), tot = dA + gap + wB, cx = -tot / 2 + dA / 2, r = dA / 2;
+    x = -tot / 2 + dA + gap + wB / 2;
+    pic = `<clipPath id="avc"><circle cx="${cx.toFixed(1)}" r="${r.toFixed(1)}"/></clipPath><image href="${esc(av)}" x="${(cx - r).toFixed(1)}" y="${(-r).toFixed(1)}" width="${dA.toFixed(1)}" height="${dA.toFixed(1)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#avc)"/>` +
+          `<circle cx="${cx.toFixed(1)}" r="${(r - 0.75).toFixed(1)}" fill="none" stroke="#fffdf8" stroke-width="2.5"/><circle cx="${cx.toFixed(1)}" r="${(r + 0.6).toFixed(1)}" fill="none" stroke="#5b3f1e" stroke-opacity=".35" stroke-width="1"/>`;
+  }
+  let y = -H / 2, s = `<text${av ? "" : ` transform="${at}"`} text-anchor="middle" font-family='${FONT}' fill="#2b2622">`;
+  for (const l of best) {
+    y += l.s * 1.16;
+    const body = l.rec && l.t.endsWith(l.rec) && l.t !== l.rec ? `${esc(l.t.slice(0, -l.rec.length))}<tspan fill="#2f5b86">${esc(l.rec)}</tspan>` : esc(l.t);
+    s += `<tspan x="${x.toFixed(1)}" y="${(y - l.s * 0.3).toFixed(1)}" font-size="${l.s.toFixed(1)}"${l.st === "bold" ? ' font-weight="bold"' : l.st === "italic" ? ' font-style="italic"' : ""}${l.fill ? ` fill="${l.fill}"` : ""}>${body}</tspan>`;
+  }
+  return av ? `<g transform="${at}" pointer-events="none">${pic}${s}</text></g>` : s + "</text>";
+}
+// portrait URLs for the wheel's avatar, resolved once (a blob URL in the published copy); a redraw follows
+const AV = new Map();
+function avatar(path) {
+  if (!path) return null;
+  if (!AV.has(path)) { AV.set(path, null); Data.url(path).then(u => { AV.set(path, u); if (D) draw(); }, () => {}); }
+  return AV.get(path);
+}
+
+// ---------- geometry. Node n (generation k) covers u in [i/2^k, (i+1)/2^k] of the full circle; the view maps the
+// focus node's interval (center c, width w) onto the top half, so angle = 180° · (u − c) / w, clockwise from the top.
+const pt = (r, a) => [r * Math.sin(a * Math.PI / 180), -r * Math.cos(a * Math.PI / 180)];
+function arc(r1, r2, a1, a2) {
+  const [x1, y1] = pt(r2, a1), [x2, y2] = pt(r2, a2), [x3, y3] = pt(r1, a2), [x4, y4] = pt(r1, a1), big = (a2 - a1) > 180 ? 1 : 0;
+  return `M${x1.toFixed(2)},${y1.toFixed(2)}A${r2},${r2} 0 ${big} 1 ${x2.toFixed(2)},${y2.toFixed(2)}L${x3.toFixed(2)},${y3.toFixed(2)}A${r1},${r1} 0 ${big} 0 ${x4.toFixed(2)},${y4.toFixed(2)}Z`;
+}
+const wrap = d => ((d % 1) + 1.5) % 1 - 0.5;       // shortest signed distance on the circle
+let Fcache = null;
+function frame() {
+  if (Fcache) return Fcache;
+  const W = svg.clientWidth, H = svg.clientHeight, pad = $("pad"), ph = getComputedStyle(pad).display !== "none" ? pad.offsetHeight + 8 : 0;
+  // the main fan (radius R) always fits the width; the faded outer rings may run off the sides, which only repeat the wrap-around.
+  // On touch screens the arrow pad sits below the fan's base line.
+  const R0 = Math.min(W * 0.595 - 16, H - 40 - ph), V = R0 > 330 ? 4 : 3, R = R0 * 0.84;
+  const RW = R * 0.8 / V;
+  return (Fcache = { W, H, cx: W / 2, cy: H - 18 - ph, R, V, H0: R * 0.2, RW, cap: Math.max(14, Math.min(30, RW / 6.2)) });
+}
+// the cells of generation k inside the half-fan: [{num, d}] with d = u − c (unwrapped, so a cell may appear twice at w = 1)
+function visibleCells(k, c, w) {
+  const n0 = 2 ** k, out = [];
+  const lo = Math.floor((c - w / 2) * n0) - 1, hi = Math.ceil((c + w / 2) * n0) + 1;
+  if (hi - lo >= n0) { for (let i = 0; i < n0; i++) for (const off of [-1, 0, 1]) out.push({ num: n0 + i, d: wrap((i + 0.5) / n0 - c) + off }); }
+  else for (let j = lo; j <= hi; j++) out.push({ num: n0 + ((j % n0) + n0) % n0, d: (j + 0.5) / n0 - c });
+  return out;
+}
+// The rings on screen for a view: [{k, r1, r2, ri, lo, hi}], where a cell of generation k shows if its angle is
+// within lo..hi degrees of the center line on either side (outer rings lose their top to the screen's edge and run off
+// its sides). `near` is the last ring of the main fan and its first faded rings; beyond it the outer generations
+// continue, as far as they fit, at that last ring's faint level (a cue for where the tree goes on).
+const SOLID = 2;
+function ringsInView(F, v) {
+  const out = [], Rmax = Math.hypot(F.W / 2, F.cy), near = Math.ceil(v.g) + F.V + SOLID + 3;
+  for (let k = Math.max(1, Math.floor(v.g) + 1); k <= maxGen + 1; k++) {
+    const r1 = F.H0 + (k - v.g - 1) * F.RW, r2 = r1 + F.RW, ri = Math.max(r1, F.H0);
+    if (r2 <= F.H0 + 0.5) continue;
+    if (ri >= Rmax) break;
+    const deg = Math.PI / 180, lo = ri > F.cy ? Math.acos(F.cy / ri) / deg : 0, hi = ri > F.W / 2 ? Math.asin(F.W / 2 / ri) / deg : 90;
+    if (lo >= hi) break;                                     // nothing of this ring (or any beyond it) is on screen
+    const rf = F.H0 + (Math.min(k, near) - v.g - 1) * F.RW;  // opacity: the formula for the main fan and its fade, then flat
+    // solid through the main fan and SOLID rings past it, then a gentle fade that never gets as faint as an unproven cell
+    const past = (rf + F.RW - F.R) / F.RW - SOLID, op = past <= 0.01 ? 1 : Math.max(0.55, 1 - 0.15 * past);
+    out.push({ k, r1, r2, ri, lo, hi, op, far: k > near });
+  }
+  return out;
+}
+function draw() {
+  if (!D) return;
+  const F = frame(), { c, w, g } = view;
+  let out = `<defs><filter id="lift" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#3b2a14" flood-opacity=".35"/></filter><clipPath id="th"><rect x="${-F.W}" y="${-2 * F.H}" width="${2 * F.W}" height="${2 * F.H + 1}"/></clipPath></defs>`;
+  out += `<g transform="translate(${F.cx},${F.cy})" clip-path="url(#th)">`;
+  let marks = "", ends = [];
+  for (const { k, r1, r2, ri, lo, hi, op, far } of ringsInView(F, view)) {
+    out += `<g opacity="${op.toFixed(2)}">`;
+    const span = 180 / 2 ** k / w;
+    for (const { num, d } of visibleCells(k, c, w)) {
+      const am = 180 * d / w;
+      if (am + span / 2 <= -90 || am - span / 2 >= 90) continue;
+      if (Math.abs(am) + span / 2 <= lo || Math.abs(am) - span / 2 >= hi) continue;   // off screen
+      if (!okNum(num)) continue;                                   // a branch: only its own people
+      const info = A[num], a1 = am - span / 2, a2 = am + span / 2;
+      const va1 = Math.max(a1, -90), va2 = Math.min(a2, 90);
+      const dim = spot && info && !spot.test(num, info) ? ` opacity="${spot.path.has(num) ? ".5" : ".16"}"` : "";
+      if (info?.end) ends.push({ h: info.end, a1, a2, r: r2, k, op });
+      if (far) { if (info) out += `<path class="cell"${dim} data-num="${num}" d="${arc(ri, r2, a1, a2)}" fill="${cellColor(num, info)}"/>`; continue; }   // outer generations: tiles only
+      if (!info) continue;      // nobody is drawn for a parent not yet found
+      if (dim) out += `<g${dim}>`;
+      out += `<path class="cell${P[info.id].unv ? " unv" : ""}" data-num="${num}" d="${arc(ri, r2, a1, a2)}" fill="${cellColor(num, info)}"/>`;
+      const shown = P[who(num)];
+      out += num === focus ? cellText(shown, ri, r2, (va1 + va2) / 2, va2 - va1, F.cap * 1.15, avatar(shown.portrait))
+                           : cellText(shown, ri, r2, (va1 + va2) / 2, va2 - va1, F.cap);
+      if (dim) out += "</g>";
+      else if (spot?.raise) marks += `<path d="${arc(ri, r2, a1, a2)}" fill="none" stroke="#5b3f1e" stroke-width="2"/>`;
+      if (num === focus) marks += `<path d="${arc(ri, r2, a1, a2)}" fill="none" stroke="#5b3f1e" stroke-width="3" ${moving ? "" : 'filter="url(#lift)"'}/>`;
+      if (num === selNum && num !== focus) marks += `<path d="${arc(ri, r2, a1, a2)}" fill="none" stroke="#2b2622" stroke-width="2" stroke-dasharray="5 3"/>`;
+    }
+    out += "</g>";
+  }
+  out += `<g pointer-events="none">${marks}</g>` + brackets(ends, F);
+  // the hub: two generations below the centered person (or the title at the base); a caret marks the centered row
+  const hub = focus >> 2, rp = F.H0 + F.RW;
+  const hr = hub > 1 ? F.H0 : Math.max(F.H0, F.H0 - g * F.RW), big = (hr - F.H0) / F.RW;   // the title grows into the empty child row
+  out += `<path class="hub" data-num="${hub > 1 ? hub : 1}" d="${arc(0.01, hr, -90, 90)}" fill="#f1ebe0" stroke="#d8cfc2"/>`;
+  out += `<path d="M-8,${-rp + 1} L8,${-rp + 1} L0,${-rp - 10}Z" fill="#5b3f1e" pointer-events="none"/>`;
+  if (hub > 1 && okNum(hub)) out += cellText(P[who(hub)], 0, F.H0 * 0.96, 0, 120, F.cap * 0.9);
+  else if (BR) { const fs = Math.min(F.cap * 1.1, F.H0 / 4.6); out += `<text text-anchor="middle" font-family='${FONT}' fill="#2b2622" font-size="${fs.toFixed(1)}"><tspan x="0" y="${(-hr * 0.5).toFixed(1)}" font-style="italic" fill="#6f655c" font-size="${(fs * 0.7).toFixed(1)}">The family of</tspan><tspan x="0" dy="1.25em">${esc(BR.label)}</tspan></text>`; }
+  else {
+    // the sixteen lines, as threads round the center
+    for (let n = 16; n < 32; n++) for (const off of [-1, 0, 1]) {
+      const d = wrap((n - 15.5) / 16 - c) + off, t1 = Math.max(-90, 180 * (d - 1 / 32) / w), t2 = Math.min(90, 180 * (d + 1 / 32) / w);
+      if (t2 - t1 > 0.2) out += `<path d="${arc(hr - 8, hr - 2, t1 + 0.25, t2 - 0.25)}" fill="${tint(PAL[n] || [215, 205, 190], 1)}" pointer-events="none"/>`;
+    }
+    const fs = Math.min(F.cap * 1.1, F.H0 / 4.6) * (1 + big * 0.85), y0 = -hr * (0.6 + big * 0.12);
+    out += `<text text-anchor="middle" font-family='${FONT}' fill="#2b2622"><tspan x="0" y="${y0.toFixed(1)}" font-size="${fs.toFixed(1)}">${esc(D.title[0])}</tspan><tspan x="0" dy="1.15em" font-weight="bold" font-size="${fs.toFixed(1)}">${esc(D.title[1])}</tspan>`;
+    if (big > 0.35) {
+      const sub = Math.max(11.5, fs * 0.45).toFixed(1), o = Math.min(1, (big - 0.35) / 0.4).toFixed(2);
+      out += `<tspan x="0" dy="${(fs * 1.4).toFixed(1)}" font-size="${sub}" fill="#5b4f45" opacity="${o}" font-style="italic">${esc(D.subtitle)}</tspan>`;
+      out += `<tspan x="0" dy="1.6em" font-size="${Math.min(sub * 0.92, hr * 1.55 / tw(D.statsLine)).toFixed(1)}" fill="#7a7068" opacity="${o}" font-family="system-ui">${esc(D.statsLine)}</tspan>`;
+    }
+    out += `</text>`;
+  }
+  svg.innerHTML = out + "</g>";
+}
+
+// Homeland brackets: over each run of line ends on screen that share the last place their lines are found (posters and
+// books draw the same, tools/fan.py). A name runs along its bracket if it fits, else outward if there is width for it.
+function brackets(ends, F) {
+  ends.sort((x, y) => x.a1 - y.a1);
+  const deg = Math.PI / 180;
+  // the widest part of a bracket at radius r that is on screen (its ends trimmed at the sides and at the top edge)
+  const onScreen = (a1, a2, r) => {
+    const side = r > F.W / 2 - 8 ? Math.asin((F.W / 2 - 8) / r) / deg : 89.5, top = r > F.cy - 16 ? Math.acos(Math.max(0, F.cy - 16) / r) / deg : 0;
+    a1 = Math.max(a1, -side); a2 = Math.min(a2, side);
+    const parts = top ? [[a1, Math.min(a2, -top)], [Math.max(a1, top), a2]] : [[a1, a2]];
+    return parts.reduce((m, p) => p[1] - p[0] > m[1] - m[0] ? p : m);
+  };
+  const join = same => { const out = []; for (const e of ends) { const l = out[out.length - 1]; if (l && l.h === e.h && e.a1 - l.a2 < 0.2 && same(l, e)) { l.a2 = e.a2; l.r = Math.max(l.r, e.r); l.op = Math.max(l.op, e.op); l.k = e.k; } else out.push({ ...e }); } return out; };
+  // one bracket per homeland, as in print; where that would run off the screen, as few as will show
+  const seen = b => { const [p1, p2] = onScreen(b.a1, b.a2, b.r + 22); return p2 - p1 > 0.75 * (Math.min(b.a2, 89) - Math.max(b.a1, -89)); };
+  const runs = [];
+  for (const e of join((l, e) => l.k === e.k)) {
+    const l = runs[runs.length - 1], m = l && l.h === e.h && e.a1 - l.a2 < 0.2 ? { ...l, a2: e.a2, r: Math.max(l.r, e.r), op: Math.max(l.op, e.op) } : null;
+    if (m && seen(m)) runs[runs.length - 1] = m; else runs.push(e);
+  }
+  let out = "";
+  for (const b of runs) {
+    const [a1, a2] = onScreen(b.a1, b.a2, b.r + 8), wide = (a2 - a1) * deg * (b.r + 8), am = (a1 + a2) / 2;
+    if (!b.h || wide < 7) continue;
+    const pad = Math.min(0.5, (a2 - a1) * 0.06), r = b.r + 8, [x1, y1] = pt(r - 5, a1 + pad), [x2, y2] = pt(r, a1 + pad), [x3, y3] = pt(r, a2 - pad), [x4, y4] = pt(r - 5, a2 - pad);
+    const on = !spot || spot.land === b.h, t = b.h.toUpperCase(), fs = wide > 150 ? 12 : wide > 16 ? 10.5 : 8.5, len = tw(t) * fs + t.length * 1.3;
+    out += `<g opacity="${(on ? Math.max(0.6, b.op) : 0.25).toFixed(2)}"><path d="M${x1.toFixed(1)},${y1.toFixed(1)}L${x2.toFixed(1)},${y2.toFixed(1)}A${r},${r} 0 0 1 ${x3.toFixed(1)},${y3.toFixed(1)}L${x4.toFixed(1)},${y4.toFixed(1)}" fill="none" stroke="#8a7a66" stroke-width="1.2"/>`;
+    const st = `font-family='${FONT}' font-size="${fs}" letter-spacing="1.3" fill="#5b4f45"`;
+    if (len < wide * 0.96) {
+      const q = r + 5, [p1, p2] = pt(q, a1), [p3, p4] = pt(q, a2), id = "bk" + runs.indexOf(b);
+      out += `<path id="${id}" d="M${p1.toFixed(1)},${p2.toFixed(1)}A${q},${q} 0 0 1 ${p3.toFixed(1)},${p4.toFixed(1)}" fill="none"/><text ${st} text-anchor="middle"><textPath href="#${id}" startOffset="50%">${esc(t)}</textPath></text>`;
+    }
+    else if (wide > fs * 0.95) out += `<text ${st} transform="translate(${pt(r + 6, am).map(v => v.toFixed(1)).join(",")}) rotate(${(am >= 0 ? am - 90 : am + 90).toFixed(2)})" text-anchor="${am >= 0 ? "start" : "end"}" dy=".35em">${esc(t)}</text>`;
+    out += "</g>";
+  }
+  return `<g class="bk">${out}</g>`;
+}
+
+// ---------- the key and the spotlight
+const inLine = (n, top) => n >= top && (n >> (gen(n) - gen(top))) === top;
+function setSpot(x) {
+  spot = x && spot?.key === x.key ? null : x;
+  if (spot) { spot.path = new Set(); for (const [k, i] of Object.entries(A)) if (spot.test(+k, i)) for (let n = +k >> 1; n > 1; n >>= 1) spot.path.add(n); }   // the way to them stays half lit
+  $("spot").classList.toggle("on", !!spot);
+  if (spot) $("spot").firstElementChild.textContent = spot.label;
+  for (const b of document.querySelectorAll("#keyb button")) b.classList.toggle("on", !!spot && b.dataset.key === spot.key);
+  draw(); drawMini();
+}
+let KEYS = {};
+function buildKey() {
+  KEYS = {};
+  const css = (n, f = 1) => tint(PAL[n] || [215, 205, 190], f), add = (key, label, sw, small, o) => {
+    KEYS[key] = { key, label, ...o };
+    return `<button data-key="${esc(key)}">${sw}<span>${esc(label)}</span>${small ? `<small>${small}</small>` : ""}</button>`; };
+  let h = "<h5>Family lines</h5>";
+  for (let n = 8; n < 16; n++) if (A[n] && okNum(n)) { const p = P[A[n].id]; h += add("line" + n, `${p.gv[p.gv.length > 2 ? p.gv.length - 2 : 0]} ${p.nee || p.sur}`, `<i style="background:${css(n)}"></i>`, "", { label: `${p.n}'s line`, test: m => inLine(m, n) || (m < n && inLine(n, m)) }); }
+  h += "<h5>How well proven</h5>" +
+    add("rec", "Backed by a record", `<i style="background:${css(9)}"></i>`, "", { test: (m, i) => !P[i.id].unv && (TINT[i.conf] ?? 0.4) === 1 }) +
+    add("tree", "Family trees or memory", `<i style="background:${css(9, 0.42)}"></i>`, "", { test: (m, i) => !P[i.id].unv && (TINT[i.conf] ?? 0.4) < 1 }) +
+    add("unv", "Copied, unchecked", `<i class="unv" style="background:${css(9, UNCHECKED)}"></i>`, "", { test: (m, i) => !!P[i.id].unv });
+  h += "<h5>Homelands</h5>";
+  const here = BR ? new Set([...BR.nums].flatMap(n => [A[n].h, A[n].end]).filter(Boolean)) : null;
+  for (const x of (D.homelands || []).filter(x => !here || here.has(x.name))) h += add("land" + x.name, x.name, `<i class="br"></i>`, x.count, { label: `From ${x.name}`, land: x.name, test: (m, i) => i.h === x.name || i.end === x.name });
+  $("keyb").innerHTML = h;
+}
+
+// ---------- minimap: the whole tree as a full circle in one fixed orientation, the base view's (the first of
+// generation 1 at the top, the second below, generation 1 the inner ring). What is on screen (ringsInView, the faded outer
+// generations included) is shaded, and the line to the centered person is traced; both move as the wheel turns.
+const BASE_C = 0.25;                                  // the base view's center: target(2).c
+function drawMini() {
+  const G = Math.min(maxGen, 10), r0 = 12, rw = (76 - r0) / G, F = frame(), { c, w } = view;
+  const ang = u => (u - BASE_C) * 360;                // a point of the tree (0..1 round the circle) to minimap degrees
+  const chain = new Set(); for (let n = focus; n > 1; n >>= 1) chain.add(n);
+  // what is on screen, per generation: intervals of u (one about the center line, or two once the top is cut off)
+  const seen = {};
+  for (const { k, lo, hi } of ringsInView(F, view)) {
+    const a = w * lo / 180, b = w * hi / 180;
+    seen[k] = lo > 0 ? [[c - b, c - a], [c + a, c + b]] : [[c - b, c + b]];
+  }
+  const overlaps = (k, u1, u2) => (seen[k] || []).some(([x, y]) => [-1, 0, 1].some(o => u1 < y + o && u2 > x + o));
+  let s = `<circle r="${r0}" fill="#f1ebe0" data-num="1"/>`, line = "", shade = "";
+  for (let k = 1; k <= G; k++) {
+    const n0 = 2 ** k, r1 = r0 + (k - 1) * rw, r2 = r1 + rw;
+    for (let i = 0; i < n0; i++) {
+      const n = n0 + i; if (!A[n] || !okNum(n)) continue;
+      const a1 = ang(i / n0), a2 = a1 + 360 / n0;
+      s += `<path data-num="${n}" d="${arc(r1, r2, a1, a2)}" fill="${overlaps(k, i / n0, (i + 1) / n0) && (!spot || spot.test(n, A[n])) ? cellColor(n, A[n]) : spot && spot.test(n, A[n]) ? cellColor(n, A[n]) : "#e8e2d8"}" stroke="#fffdf8" stroke-width="${k > 6 ? 0.15 : 0.4}"/>`;
+      if (chain.has(n)) line += `<path d="${arc(r1, r2, a1, a2)}" fill="${n === focus ? "#5b3f1e" : "none"}" stroke="#5b3f1e" stroke-width="0.9"/>`;
+    }
+    for (const [x, y] of seen[k] || []) {            // the window: a soft wash over exactly what the screen shows
+      const a1 = ang(x), a2 = ang(y);
+      shade += a2 - a1 >= 359.9 ? `<path d="${arc(r1, r2, a1, a1 + 180)}"/><path d="${arc(r1, r2, a1 + 180, a1 + 360)}"/>` : `<path d="${arc(r1, r2, a1, a2)}"/>`;
+    }
+  }
+  $("mini").innerHTML = s + `<g pointer-events="none" fill="#5b3f1e" fill-opacity=".16" stroke="#5b3f1e" stroke-opacity=".5" stroke-width=".35">${shade}</g><g pointer-events="none">${line}</g>`;
+  const kf = gen(focus);
+  // breadcrumb: from the base generation to the centered person; long trails keep both ends
+  const trail = []; for (let n = focus; n > 1 && okNum(n); n >>= 1) trail.unshift(n);
+  const items = trail.map(n => `<span class="plink" data-focus="${n}">${esc(shortName(who(n)))}</span>`);
+  const shown = items.length > 5 ? [items[0], "…", ...items.slice(-3)] : items;
+  const fp = P[A[focus].id], q = fp.q ? ` · ${fp.q}'s line` : "";
+  $("crumb").innerHTML = shown.join(" › ") + (BR ? "" : `<span class="gen" title="Generation 1 is ${esc(shortName(A[2].id))} and ${esc(shortName(A[3].id))}">Generation ${kf} of ${maxGen}${q}</span>`);
+}
+
+// ---------- navigation (animated)
+function target(n) { const k = gen(n), i = n - 2 ** k; return { c: (i + 0.5) / 2 ** k, w: 2 / 2 ** k, g: k - 2 }; }
+function go(n, dir) {
+  if (!A[n] || n < 2 || !okNum(n)) return;
+  gliding = false;
+  if (n === focus && Math.abs(wrap(view.c - target(n).c)) < 1e-9 && view.g === target(n).g) { draw(); return; }
+  focus = n; const t = target(n), s = { ...view }, t0 = performance.now();
+  let dc = wrap(t.c - s.c);
+  if (dir && dc && Math.sign(dc) !== dir) dc += dir;   // keep turning the way the user asked
+  const dur = 480 + 70 * Math.min(4, Math.abs(Math.log2(t.w / s.w))) + 200 * Math.min(1, Math.abs(dc) / t.w / 4);
+  cancelAnimationFrame(anim);
+  const step = now => {
+    const x = Math.min(1, (now - t0) / dur), e = x < 0.5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2;   // ease in-out
+    view = { c: ((s.c + dc * e) % 1 + 1) % 1, w: Math.exp(Math.log(s.w) + (Math.log(t.w) - Math.log(s.w)) * e), g: s.g + (t.g - s.g) * e };
+    draw(); if (x < 1) anim = requestAnimationFrame(step); else { view = t; draw(); drawMini(); }
+  };
+  anim = requestAnimationFrame(step); drawMini();
+}
+const older = () => { const a = 2 * focus, b = a + 1, ha = A[a] && okNum(a), hb = A[b] && okNum(b); go(ha && (P[A[a].id].sex !== "F" || !hb) ? a : hb ? b : a); };   // up: the father (the mother if he is unknown), on whichever side he is drawn
+const newer = () => { if (focus > 3 && okNum(focus >> 1)) go(focus >> 1); };
+const home = () => go(BR ? BR.home : 2);
+function sideways(dir) {
+  const k = gen(focus), n0 = 2 ** k;
+  for (let j = 1; j < n0; j++) { const n = n0 + ((focus - n0 + dir * j) % n0 + n0) % n0; if (A[n] && okNum(n)) return go(n, dir); }
+}
+function showPerson(id) {          // center a person (or, for someone outside the direct line, their nearest ancestor) and open them
+  const p = P[id]; if (!p || !okId(id)) return;
+  const n = p.num || (p.rel && P[p.rel.to]?.num);
+  if (n) { selNum = n; go(n); }
+  openPerson(id);
+}
+
+// ---------- panel
+// confidence, shown quietly: a dot (its name on hover), plus the word for the weaker grades
+const CW = { confirmed: "confirmed", probable: "probable", possible: "possible", "family-lore": "family lore" };
+const DOT = c => c ? `<span class="cd ${esc(c)}" title="${esc(CW[c] || c)}" role="img" aria-label="${esc(CW[c] || c)}"></span>` : "";
+const WEAK = c => c === "possible" || c === "family-lore" ? `<span class="qual">${esc(CW[c])}</span>` : "";
+const CONF = c => DOT(c) + WEAK(c);
+function cite(list) {
+  return (list || []).map(([id, loc]) => { const s = S[id];
+    return `<span class="chip${s?.files ? " img" : ""}" data-src="${esc(id)}" title="${esc(s?.t || id)}${loc ? " — " + esc(loc) : ""}">${esc(id)}</span>`; }).join("");
+}
+const plink = id => P[id] && okId(id) ? `<span class="plink" data-pid="${id}">${esc(P[id].n)}</span>` : P[id] ? `<span>${esc(P[id].n)}</span>` : `<span class="note">${esc(id)}</span>`;
+function recTile(item, i) {
+  const s = item.s ? S[item.s] : null, f = s ? s.files[0] : item.m, n = s ? s.files.length : 1;   // n: pages
+  const cap = s ? `<b>${esc(s.y || "n.d.")} · ${esc(s.tl)}</b>${esc(s.cap)}` : item.m.s ? esc(item.m.t) : `<b>tree picture</b>${esc(item.m.t || "untitled")}`;
+  return `<div class="rec" data-rec="${i}" title="${esc(s ? s.t : item.m.t)}"><div class="im"${f?.th ? ` data-bg="${esc(f.th)}"` : ""}>${n > 1 ? `<span class="pg">${n} pp</span>` : ""}</div><div class="cap">${cap}</div></div>`;
+}
+function kicker(p) {
+  if (p.num) return `Generation ${p.gen}${p.q ? ` · ${esc(p.q)}'s line` : ""}${p.unv ? ' <span class="tag">copied tree, unchecked</span>' : ""}`;
+  if (p.rel) return `${esc(p.rel.how[0].toUpperCase() + p.rel.how.slice(1))} ${plink(p.rel.to)}`;
+  return "Not in the direct line";
+}
+// family links in the card: each with its confidence; alternate (competing or contradicted) and non-biological links marked
+function famLinks(list) {
+  return list.map(x => `<span class="lk${x.alt ? " alt" : ""}">${plink(x.id)}${DOT(x.c)}${x.alt ? '<span class="qual" title="A competing or contradicted link, kept with its sources">alternate</span>'
+    : x.rel && x.rel !== "biological" ? `<span class="qual">${esc(x.rel)}</span>` : WEAK(x.c)}${x.m ? `<span class="qual">m. ${esc(x.m)}</span>` : ""}</span>`).join('<span class="sep">, </span>');
+}
+function edTile(e, i) {         // a book or poster of the family's history (the four grandparents)
+  return `<div class="ed" data-ed="${i}" title="${esc(e.t)}"><div class="gim">${e.th ? `<img data-img="${esc(e.th)}" alt="">` : ""}</div>
+    <div class="gcap"><b>${esc(e.t)}</b>${e.sub ? `<span>${esc(e.sub)}</span>` : ""}<a data-href="${esc(e.u)}" href="#" target="_blank" rel="noopener">open the file</a></div></div>`;
+}
+function openPerson(id) {
+  const p = P[id]; if (!p) return;
+  if (D.shards && !p._ready) {
+    cur = { id, items: [], eds: [] };
+    $("panel").innerHTML = `<div class="grab" title="Drag up for more, down to close"><i></i></div><button class="x" data-close="1" title="Close (Esc)">✕</button>
+      <div class="ph">${p.portrait ? `<img data-img="${esc(p.portrait)}" alt="">` : ""}<div>
+        <div class="kicker${p.num ? "" : " rel"}">${kicker(p)}</div><h2>${esc(p.n)}</h2>
+        <div class="sub">${esc(p.yrs || "dates unknown")}${p.living ? " · living" : ""} · ${esc(id)}</div></div></div>
+      <div class="sum"><div class="note">Loading details…</div></div>`;
+    $("panel").scrollTop = 0; hydrate($("panel")); setPanel(true); history.replaceState(null, "", "#" + id);
+    ensurePerson(id).then(() => { if (cur?.id === id && !cur.story && P[id]._ready) openPerson(id); });
+    return;
+  }
+  const items = [...(p.recs || []).map(r => ({ s: r.s, f: r.f })), ...(p.media || []).map(m => ({ m }))];
+  cur = { id, items, eds: (p.editions || []).map(ed => ({ ed })) };
+  const sm = p.sum, fam = p.fam, row = (lab, html) => html ? `<div class="vit"><b>${lab}</b><span>${html}</span></div>` : "";
+  const v = x => x ? row(x.l, esc(x.t) + CONF(x.c)) : "";
+  const nRec = (p.recs || []).length, all = items.slice(nRec).map((x, i) => [x, nRec + i]);
+  const photos = all.filter(([x]) => x.m.s), pics = all.filter(([x]) => !x.m.s);     // family photographs (with a source), and the tree's pictures
+  const nSp = fam.spouses.length, married = nSp && fam.spouses.every(x => x.m);
+  const card = v(sm.born) + v(sm.died) + row("Parents", famLinks(fam.parents)) +
+    row(married ? "Married" : nSp > 1 ? "Spouses" : "Spouse", famLinks(fam.spouses)) + row("Children", famLinks(fam.children)) +
+    row("Work", sm.work.map(esc).join("; ")) + (sm.lede ? `<div class="lede">${esc(sm.lede)}</div>` : "");
+  const pf = p.pfrom, ptitle = pf ? `Portrait from ${pf.s}${pf.note ? ": " + pf.note : ""}` : "Picture from the family tree";
+  $("panel").innerHTML = `<div class="grab" title="Drag up for more, down to close"><i></i></div><button class="x" data-close="1" title="Close (Esc)">✕</button>
+    <div class="ph">${p.portrait ? `<img data-img="${esc(p.portrait)}" alt="${esc(ptitle)}" title="${esc(ptitle)}" data-portrait="1">` : ""}<div>
+      <div class="kicker${p.num ? "" : " rel"}">${kicker(p)}</div>
+      <h2>${esc(p.n)}</h2>
+      <div class="sub">${esc(p.yrs || "dates unknown")}${p.living ? " · living" : ""} · ${esc(id)}</div>
+      ${p.alts.length ? `<div class="sub" title="${esc(p.alts.join("\n"))}">Also recorded as ${p.alts.slice(0, 2).map(esc).join("; ")}${p.alts.length > 2 ? ` and ${p.alts.length - 2} more` : ""}</div>` : ""}</div></div>
+    <div class="sum">${card}
+      <details class="more st"><summary>Full story</summary><div class="story">${storyHtml(p.story)}</div></details>
+      <details class="more"><summary>Facts <span>(${p.facts.length})</span></summary><div class="facts">${p.facts.map(factRow).join("") || '<p class="note">No dated facts yet.</p>'}</div></details></div>
+    ${storySection(id)}
+    ${cur.eds.length ? `<section class="eds"><h3>${esc(D.edHeading || "Family history")}</h3><div class="gtiles">${p.editions.map(edTile).join("")}</div></section>` : ""}
+    ${photos.length ? `<h3>Photographs <span>(${photos.length})</span></h3><div class="recs photos">${photos.slice(0, 12).map(([x, i]) => recTile(x, i)).join("")}</div>${photos.length > 12
+      ? `<details class="phs"><summary>Show all ${photos.length} photographs ›</summary><div class="recs photos">${photos.slice(12).map(([x, i]) => recTile(x, i)).join("")}</div></details>` : ""}` : ""}
+    <h3>Records <span>(${nRec})</span></h3>
+    ${nRec ? `<div class="recs${nRec >= 4 ? " lead" : ""}">${items.slice(0, nRec).map(recTile).join("")}</div>` : `<div class="note">No record images held yet.</div>`}
+    ${pics.length ? `<h3>Pictures from the family tree <span>(${pics.length})</span></h3><div class="recs">${pics.map(([x, i]) => recTile(x, i)).join("")}</div>` : ""}
+    ${p.other.length ? `<div class="note" style="margin-top:8px">Other sources, no image: ${cite(p.other.map(x => [x, ""]))}</div>` : ""}`;
+  $("panel").scrollTop = 0;
+  hydrate($("panel"));
+  setPanel(true);
+  history.replaceState(null, "", "#" + id);
+}
+// ---------- stories: precomputed per-person bindings in P[id].st (tools/viewer.py), filtered by active branch
+function storiesOf(id) {
+  const st = P[id]?.st;
+  if (st) {
+    const about = st.a.map(k => ST_BY.get(k)).filter(Boolean);
+    const behind = st.b.filter(([, v]) => okNum(v)).map(([k, v]) => [ST_BY.get(k), v]).filter(([s]) => s);
+    return { about, behind };
+  }
+  const n = P[id]?.num, about = [], behind = [], up = n ? [] : (P[id]?.fam?.parents || []).filter(x => !x.alt && P[x.id]?.num && okNum(P[x.id].num)).map(x => P[x.id].num);
+  for (const s of D.stories || []) {
+    const nums = s.nums.filter(okNum);
+    if (n ? nums.includes(n) || s.people.includes(id) : s.people.includes(id)) { about.push(s); continue; }
+    if (!n) { const v = up.find(v => nums.some(m => inLine(m, v))); if (v) behind.push([s, v]); continue; }
+    const m = nums.find(m => m > n && inLine(m, n));
+    if (m) behind.push([s, m >> (gen(m) - gen(n) - 1)]);
+  }
+  return { about, behind };
+}
+const stRow = (s, list) => `<div class="st-row" data-story="${esc(s.id)}" data-list="${esc(list)}"><i style="background:${tint(PAL[s.nums.length ? s.nums[0] >> Math.max(0, gen(s.nums[0]) - 4) : 2] || [200, 190, 175], 1)}"></i><span>${esc(s.t)}</span></div>`;
+function storySection(id) {
+  const { about, behind } = storiesOf(id); if (!about.length && !behind.length) return "";
+  const many = (rows, k) => rows.length > k + 2 ? rows.slice(0, k).join("") + `<details class="st-more"><summary>Show all ${rows.length} ›</summary>${rows.slice(k).join("")}</details>` : rows.join("");
+  let h = `<h3>Stories <span>(${about.length + behind.length})</span></h3><div class="st-list">`;
+  if (about.length) h += (behind.length ? `<div class="st-via">About ${esc(shortName(id))}</div>` : "") + many(about.map(s => stRow(s, id)), 6);
+  const via = [...new Set(behind.map(x => x[1]))].sort((a, b) => a - b);
+  for (const v of via) h += `<div class="st-via">Behind ${A[v] ? plink(A[v].id) : "them"}</div>` + many(behind.filter(x => x[1] === v).map(([s]) => stRow(s, id)), 4);
+  return h + "</div>";
+}
+function openStory(sid, from) {
+  const s = ST_BY.get(sid); if (!s) return;
+  if (!s.text) {
+    cur = { id: from, items: [], eds: [], story: sid };
+    $("panel").innerHTML = `<div class="grab" title="Drag up for more, down to close"><i></i></div><button class="x" data-close="1" title="Close (Esc)">✕</button><div class="reader">
+      <div class="kicker">${from ? `<span class="plink" data-pid="${esc(from)}">‹ ${esc(P[from].n)}</span>` : "Story"}</div><h2>${esc(s.t)}</h2><p class="note">Loading story…</p></div>`;
+    $("panel").scrollTop = 0; setPanel(true); spotStory(s, false);
+    ensureStory(sid).then(full => { if (cur?.story === sid && full?.text) openStory(sid, from); });
+    return;
+  }
+  const o = from ? storiesOf(from) : null, list = o ? [...o.about, ...o.behind.map(x => x[0])] : D.stories, at = list.findIndex(x => x.id === sid);
+  const fig = (x, i) => `<figure><img data-img="${esc(x.u)}" data-spic="${i}" alt=""><figcaption>${storyHtml(x.cap)}</figcaption></figure>`;
+  const blocks = s.text.map((b, i) => storyHtml([b]) + s.pics.map((x, j) => x.after === i + 1 ? fig(x, j) : "").join(""));
+  const late = s.pics.map((x, j) => x.after > s.text.length ? fig(x, j) : "").join("");
+  cur = { id: from, items: s.pics.map(x => ({ m: { u: x.u, th: x.u, k: "img", t: s.t, st: true } })), eds: [], story: sid };
+  const tintStyle = s.tint ? ` style="--st-tint:${esc(s.tint)}"` : "";
+  const evBox = s.note ? `<div class="ev-box"><b>How we know</b>${esc(s.note)}</div>` : "";
+  $("panel").innerHTML = `<div class="grab" title="Drag up for more, down to close"><i></i></div><button class="x" data-close="1" title="Close (Esc)">✕</button><div class="reader"${tintStyle}>
+    <div class="kicker">${from ? `<span class="plink" data-pid="${esc(from)}">‹ ${esc(P[from].n)}</span>` : "Story"}</div><h2>${esc(s.t)}</h2>
+    <p class="proof">${s.proof ? `<b>${esc(s.proof)}</b>` : ""}${s.locHtml || ""}</p>
+    <div class="bar">${s.nums.some(okNum) ? `<button data-stspot="${esc(sid)}">Show on the tree</button>` : ""}${at > 0 ? `<button data-story="${esc(list[at - 1].id)}" data-list="${esc(from || "")}">‹ Previous</button>` : ""}${at > -1 && at < list.length - 1 ? `<button data-story="${esc(list[at + 1].id)}" data-list="${esc(from || "")}">Next story ›</button>` : ""}</div>
+    ${s.pics.map((x, j) => x.after ? "" : fig(x, j)).join("")}<div class="story">${blocks.join("")}${late}${evBox}</div>
+    ${s.people.length ? `<div class="ppl"><b>In this story:</b> ${s.people.map(plink).join(", ")}</div>` : ""}</div>`;
+  $("panel").scrollTop = 0; hydrate($("panel")); setPanel(true); spotStory(s, false);
+}
+function spotStory(s, turn = true) {       // light the story's people and, on request, turn the wheel to frame them
+  const nums = s.nums.filter(okNum), set = new Set(nums); if (!set.size) return setSpot(null);
+  spot = null; setSpot({ key: "story" + s.id, label: s.t, raise: true, test: n => set.has(n) });
+  if (!turn) return;
+  let [n, ...rest] = nums; for (const m of rest) { let x = m; while (gen(x) > gen(n)) x >>= 1; while (gen(n) > gen(x)) n >>= 1; while (x !== n) { x >>= 1; n >>= 1; } }
+  go(Math.max(2, okNum(n) ? n : nums[0]));
+}
+function setPanel(on) { Fcache = null; document.body.classList.toggle("panel", on); draw(); }   // the ResizeObserver redraws as the wheel eases over
+function closePanel() { document.body.classList.remove("sheetfull"); setPanel(false); selNum = null; cur = null; if (spot?.raise) setSpot(null); draw(); history.replaceState(null, "", location.pathname + location.search); }
+function factRow(f) {
+  return `<div class="fact ${f.alt ? "alt" : ""}"><b>${esc(f.l)}</b> ${esc([f.d, f.pl].filter(Boolean).join(", "))}${f.v ? " — " + esc(f.v) : ""}
+    ${CONF(f.c)} ${cite(f.src)}${f.note ? `<div class="note">${esc(f.note)}</div>` : ""}</div>`;
+}
+function segsHtml(segs) {
+  return segs.map(x => typeof x === "string" ? esc(x) : x.c ? cite(x.c) : x.b ? `<b>${esc(x.b)}</b>` : x.i ? `<i>${esc(x.i)}</i>` : "").join("");
+}
+function storyHtml(blocks) {
+  return blocks.map(b => Array.isArray(b) ? `<p>${segsHtml(b)}</p>` : b.h ? `<h4>${esc(b.h)}</h4>` : b.tb ? `<table>${b.tb.map(r => `<tr>${r.map(c => `<td>${segsHtml(c)}</td>`).join("")}</tr>`).join("")}</table>` : b.ul ? `<ul>${b.ul.map(li => `<li>${segsHtml(li)}</li>`).join("")}</ul>` : "").join("") || `<p class="note">No story written yet.</p>`;
+}
+
+// ---------- record viewer: items are {s: source id, f: facts it supports}, {m: a picture from the tree} or
+// {ed: a book or poster PDF}. pg: {ri, pi, page} opens a PDF at that page (a chosen portrait's page).
+let V = null, Z = { s: 1, x: 0, y: 0 };
+function openViewer(items, ri, pi = 0, pg = null) {
+  V = { items, ri, pi, pg }; $("viewer").classList.add("open");
+  const need = items.map(x => x.s).filter(id => id && !S[id]);
+  if (need.length) {
+    $("stage").innerHTML = `<button class="vx" data-vclose="1" title="Close (Esc)">✕</button><div class="spin">Loading…</div>`;
+    ensureSources(need).then(() => { if (V?.items === items) renderViewer(); });
+  } else renderViewer();
+}
+function closeViewer() { $("viewer").classList.remove("open"); V = null; $("stage").innerHTML = ""; }
+function prefetchAdj() {
+  if (!V) return;
+  const fs = filesOf(V.items[V.ri]), warm = f => { if (f && f.k === "img" && f.u) Data.url(f.u).catch(() => {}); };
+  if (V.pi + 1 < fs.length) warm(fs[V.pi + 1]);
+  else if (V.items.length > 1) warm(filesOf(V.items[(V.ri + 1) % V.items.length])[0]);
+  if (V.pi > 0) warm(fs[V.pi - 1]);
+  else if (V.items.length > 2) warm(filesOf(V.items[(V.ri - 1 + V.items.length) % V.items.length])[0]);
+}
+function openItem(i) {             // a photograph opens among the person's photographs; a record or tree picture among the rest
+  const x = cur.items[i], list = cur.items.filter(y => !!(y.m && y.m.s) === !!(x.m && x.m.s));
+  openViewer(list, list.indexOf(x));
+}
+const filesOf = it => it.ed ? [it.ed] : it.s ? (S[it.s]?.files || []) : [it.m];
+const titleOf = it => it.ed ? it.ed.t : it.s ? S[it.s]?.t || it.s : it.m.t || (it.m.s ? "Photograph" : "Picture from the family tree");
+function openPortrait() {          // the record the chosen portrait was cut from, at its file and page; else the tree picture
+  const p = cur && P[cur.id]; if (!p) return;
+  const pf = p.pfrom, ph = cur.items.findIndex(x => x.m?.s && x.m.u === pf?.f);
+  if (ph >= 0) return openItem(ph);
+  if (pf?.s && S[pf.s]) {
+    let ri = cur.items.findIndex(x => x.s === pf.s), items = cur.items;
+    if (ri < 0) { items = [{ s: pf.s }]; ri = 0; }
+    const pi = Math.max(0, (S[pf.s].files || []).findIndex(f => f.u === pf.f || f.u.startsWith(pf.f + "#")));
+    const pdfp = (S[pf.s].files || []).findIndex(f => f.u === `${pf.f}#p${pf.pg || 1}.jpg`);   // a large PDF published as pages
+    return openViewer(items, ri, pdfp >= 0 ? pdfp : pi, pf.pg ? { ri, pi, page: pf.pg } : null);
+  }
+  const mi = p.media.findIndex(m => m.th === p.portrait);
+  if (mi >= 0) openViewer(cur.items, p.recs.length + mi);
+}
+const COARSE = matchMedia("(pointer:coarse)");
+function renderViewer() {
+  const it = V.items[V.ri], s = it.s ? S[it.s] || { t: it.s, tl: "source", files: [] } : null, fs = filesOf(it), f = fs[V.pi], p = cur && P[cur.id];
+  const many = V.items.length > 1 || fs.length > 1;
+  const nav = `<button class="vx" data-vclose="1" title="Close (Esc)">✕</button>` +
+    (many ? `<button class="nav" style="left:8px" data-vstep="-1" title="Previous (←)">‹</button><button class="nav" style="right:8px" data-vstep="1" title="Next (→)">›</button>` : "");
+  const msg = (t, th) => `${nav}<div class="msg">${th ? `<img data-img="${esc(th)}" alt="">` : ""}<div>${t}</div></div>`;
+  const tip = `<span class="zoomtip"><span class="hint-mouse">scroll or +/− to zoom · drag to pan · double-click to fit</span><span class="hint-touch">pinch to zoom · drag to pan · double-tap to fit</span></span>`;
+  const st = $("stage"), token = V.token = (V.token || 0) + 1;
+  const image = (path, extra = "") => {
+    st.innerHTML = `${nav}${tip}${extra}<div class="spin">Loading…</div><img class="full" id="vimg" alt="">`;
+    const im = $("vimg");
+    im.onload = () => { if (V?.token === token) { fit(); im.classList.add("loaded"); st.querySelector(".spin")?.remove(); prefetchAdj(); } };
+    im.onerror = () => { if (V?.token === token) { st.innerHTML = msg(`This browser can't show this file type.${VAULT ? "" : ` <a href="${esc(ROOT + path)}" target="_blank" rel="noopener">Open the original</a>`}`, f.th); hydrate(st); } };
+    Data.url(path).then(u => { if (V?.token === token) im.src = u; }, () => im.onerror());
+  };
+  const surl = safeUrl(s?.url);
+  if (!f) st.innerHTML = msg(`No image held for this source.${surl ? ` <a href="${esc(surl)}" target="_blank" rel="noopener">See it online</a>` : ""}`);
+  else if (f.k === "missing") st.innerHTML = msg(VAULT ? `This file isn't in the web copy.` : `The file isn't in this copy of the repository:<br><code>${esc(f.u)}</code>`, f.th);
+  else if (f.k === "lfs") st.innerHTML = msg(`The image hasn't been downloaded from Git LFS yet.<br>Run <code>git lfs checkout</code>, then reload.`, f.th);
+  else if (f.k === "pdf" && f.p1 && COARSE.matches)   // touch screens: the first page as a picture, the whole PDF a tap away
+    image(f.p1, `<div class="pdfbar">Page 1 · <a data-href="${esc(f.u)}" href="#" target="_blank" rel="noopener">open the whole PDF</a></div>`);
+  else if (f.k === "pdf") {
+    st.innerHTML = `${nav}<iframe title="PDF"></iframe>`;
+    const at = V.pg && V.pg.ri === V.ri && V.pg.pi === V.pi ? `page=${V.pg.page}&` : "";
+    Data.url(f.u).then(u => { if (V?.token === token) st.querySelector("iframe").src = u + "#" + at + "view=FitH"; }, () => { if (V?.token === token) { st.innerHTML = msg("Couldn't open this PDF.", f.th); hydrate(st); } });
+  }
+  else image(f.u);   // images, and TIFFs where the browser can show them (Safari can; others fall back to the thumbnail)
+  const facts = it.f || [], who = (s?.who || []).filter(x => x !== cur?.id && okId(x));
+  const qual = s ? [s.q && `${s.q} record`, s.info && `${s.info} information`].filter(Boolean).join(", ") : "";
+  const open = f && f.k !== "missing" && f.k !== "lfs" ? `<a data-href="${esc(f.u)}" href="#" target="_blank" rel="noopener">${it.ed ? "open the file" : VAULT ? (f.k === "pdf" ? "open the PDF" : "open the image") : "open the original"}</a>${f.pdfp ? ` (page ${f.pdfp[0]} of the PDF; it is too large for the web, so its pages are pictures)` : ""}` : "none held";
+  const ed = it.ed, word = ed ? (ed.kind === "poster" ? "Poster" : "Book") : it.m?.st ? "Illustration" : it.m?.s ? "Photograph" : "Record";
+  $("vside").innerHTML = `<button class="x" data-vclose="1" title="Close (Esc)">✕</button>
+    <div class="sub">${V.items.length > 1 ? `${word} ${V.ri + 1} of ${V.items.length}` : word}${fs.length > 1 ? ` · page ${V.pi + 1} of ${fs.length}` : ""}${it.s ? ` · ${esc(it.s)}` : ""}</div>
+    <h2>${esc(titleOf(it))}</h2>
+    ${ed ? `<h3>${esc(D.edHeading || "Family history")}</h3><div class="meta"><b>Kind</b><span>${ed.kind === "poster" ? "Poster" : "Book"}${ed.sub ? " · " + esc(ed.sub) : ""}</span>
+      <b>Pages</b><span>${ed.pp}</span><b>File</b><span>${open}</span></div><div class="note">${ed.kind === "poster" ? "One large page: zoom in to read the names." : "Page through it here, or open the file to read or print it."}</div>` : ""}
+    ${facts.length ? `<h3>What it shows about ${esc(p.n)}</h3><div class="shows">` + facts.map(([lab, txt, c, loc]) => `<div class="fact"><b>${esc(lab)}</b> ${esc(txt)} ${CONF(c)}${loc ? `<div class="note">${esc(loc)}</div>` : ""}</div>`).join("") + "</div>" : ""}
+    ${who.length ? `<h3>Also shown for</h3><div>${who.map(plink).join(", ")}</div>` : ""}
+    ${ed ? "" : `<h3>About the ${it.m?.st ? "illustration" : it.m?.s ? "photograph" : "record"}</h3><div class="meta">${s ? `${s.date ? `<b>Date</b><span>${esc(s.date)}</span>` : ""}<b>Kind</b><span>${esc(s.tl)}${qual ? ` · ${esc(qual)}` : ""}</span>${s.repo ? `<b>Held by</b><span>${esc(s.repo)}</span>` : ""}`
+      : it.m?.st ? `<b>From</b><span>Story: ${esc(it.m.t)}</span>`
+      : it.m.s ? `<b>From</b><span>${esc(S[it.m.s]?.repo || S[it.m.s]?.t || it.m.s)}${cite([[it.m.s, ""]])}</span>`
+      : `<b>From</b><span>attached to ${esc(p?.n || "")} in the Ancestry tree; not yet registered as a source</span>`}
+      <b>Files</b><span>${open}${surl ? ` · <a href="${esc(surl)}" target="_blank" rel="noopener">see it online</a>` : ""}</span></div>`}
+    ${s?.notes ? `<h3>Notes</h3><div class="note">${esc(s.notes)}</div>` : ""}
+    ${s?.tr ? `<h3>Transcript${s.tr.hit ? "" : " <span>(this record's passage wasn't found; the start of the file)</span>"}</h3><pre id="vtr">loading…</pre><div class="note" style="margin-top:4px"><a data-href="${esc(s.tr.f)}" href="#" target="_blank" rel="noopener">whole transcript</a></div>` : ""}`;
+  $("vside").scrollTop = 0;
+  if (s?.tr) loadTranscript(s.tr, token);
+  $("strip").innerHTML = V.items.length > 1 ? V.items.map((x, i) => { const th = filesOf(x)[0]?.th;
+    return `<div data-vjump="${i}" class="${i === V.ri ? "on" : ""}" title="${esc(titleOf(x))}"${th ? ` data-bg="${esc(th)}"` : ""}></div>`; }).join("") : "";
+  hydrate(st); hydrate($("vside")); hydrate($("strip"));
+  $("strip").querySelector(".on")?.scrollIntoView({ inline: "center", block: "nearest" });
+}
+const TR = {};
+async function loadTranscript(tr, token) {
+  const lines = TR[tr.f] ??= await Data.text(tr.f).catch(() => "").then(t => t.split("\n"));
+  if (V?.token !== token || !$("vtr")) return;
+  $("vtr").textContent = lines.slice(tr.a, tr.b ?? undefined).join("\n").trim() || "(empty)";
+}
+function vstep(d) {
+  const n = filesOf(V.items[V.ri]).length;
+  V.pi += d;
+  if (V.pi >= n) { V.ri = (V.ri + 1) % V.items.length; V.pi = 0; }
+  else if (V.pi < 0) { V.ri = (V.ri - 1 + V.items.length) % V.items.length; V.pi = Math.max(0, filesOf(V.items[V.ri]).length - 1); }
+  renderViewer();
+}
+// pan and zoom for images
+function applyZ() { const im = $("vimg"); if (im) im.style.transform = `translate(${Z.x}px,${Z.y}px) scale(${Z.s})`; }
+function fit() { const im = $("vimg"), st = $("stage"); if (!im?.naturalWidth) return;
+  const s = Math.min(st.clientWidth / im.naturalWidth, st.clientHeight / im.naturalHeight) * 0.98;
+  Z = { s, x: (st.clientWidth - im.naturalWidth * s) / 2, y: (st.clientHeight - im.naturalHeight * s) / 2 }; applyZ(); }
+function zoomAt(k, mx, my) {
+  const st = $("stage"); mx ??= st.clientWidth / 2; my ??= st.clientHeight / 2;
+  const ns = Math.max(0.05, Math.min(25, Z.s * k)), rk = ns / (Z.s || 1);
+  Z = { s: ns, x: mx - (mx - Z.x) * rk, y: my - (my - Z.y) * rk }; applyZ();
+}
+$("stage").addEventListener("wheel", e => {
+  if (!$("vimg")) return; e.preventDefault();
+  const r = $("stage").getBoundingClientRect(), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  zoomAt(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+// one finger (or the mouse) pans; two fingers pinch-zoom about their midpoint; a double tap fits
+const spt = new Map(); let pan = null, pinch = null, lastTap = { t: 0, x: 0, y: 0 };
+const stage = $("stage");
+const mid = () => { const [a, b] = [...spt.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+stage.addEventListener("pointerdown", e => {
+  if (!$("vimg") || e.target.closest("button,a")) return;
+  spt.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+  e.preventDefault();
+  if (spt.size === 1) { pan = { x: e.clientX - Z.x, y: e.clientY - Z.y }; stage.classList.add("panning"); }
+  else if (spt.size === 2) { pan = null; pinch = mid(); }
+});
+stage.addEventListener("pointermove", e => {
+  const pt = spt.get(e.pointerId); if (!pt) return;
+  pt.x = e.clientX; pt.y = e.clientY;
+  if (pinch && spt.size >= 2) {
+    const m = mid(), r = stage.getBoundingClientRect();
+    Z.x += m.x - pinch.x; Z.y += m.y - pinch.y;
+    zoomAt(m.d / (pinch.d || 1), m.x - r.left, m.y - r.top); pinch = m;
+  } else if (pan) { Z.x = e.clientX - pan.x; Z.y = e.clientY - pan.y; applyZ(); }
+});
+function stageUp(e) {
+  const pt = spt.get(e.pointerId); if (!pt) return;
+  spt.delete(e.pointerId);
+  if (spt.size < 2) pinch = null;
+  if (spt.size === 1) { const [o] = spt.values(); pan = { x: o.x - Z.x, y: o.y - Z.y }; return; }
+  pan = null; stage.classList.remove("panning");
+  if (e.type === "pointerup" && e.pointerType !== "mouse" && Math.hypot(pt.x - pt.x0, pt.y - pt.y0) < 10) {   // double tap
+    const now = performance.now();
+    if (now - lastTap.t < 320 && Math.hypot(pt.x - lastTap.x, pt.y - lastTap.y) < 40) { fit(); lastTap.t = 0; } else lastTap = { t: now, x: pt.x, y: pt.y };
+  }
+}
+stage.addEventListener("pointerup", stageUp); stage.addEventListener("pointercancel", stageUp);
+stage.addEventListener("dblclick", e => { if (e.target.id === "vimg") fit(); });
+
+// ---------- wheel input. One step per gesture: a trackpad's momentum tail is ignored until it dies down or a new push starts.
+let acc = 0, accX = 0, lock = 0, lastT = 0, lastMag = 0;
+svg.addEventListener("wheel", e => {
+  e.preventDefault();
+  const now = performance.now(), k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+  const dx = e.deltaX * k, dy = e.deltaY * k, mag = Math.hypot(dx, dy);
+  if (now - lastT > 220) { acc = accX = 0; lock = 0; }             // a pause ends the gesture
+  const push = lock && now - lock > 320 && mag > lastMag * 1.6 + 6;  // a fresh push during the tail
+  const steady = lock && now - lock > 450 && mag >= 40 && mag >= lastMag;   // a mouse wheel kept spinning (momentum only decays)
+  lastT = now; lastMag = mag;
+  if (lock && !push && !steady) return;
+  if (Math.abs(dx) > Math.abs(dy) || e.shiftKey) accX += dx || dy; else acc += dy;
+  if (acc < -40) older(); else if (acc > 40) newer(); else if (Math.abs(accX) > 60) sideways(accX > 0 ? 1 : -1); else return;
+  acc = accX = 0; lock = now;
+}, { passive: false });
+let gest = 1;   // Safari pinch: open for older generations, close for newer
+svg.addEventListener("gesturestart", e => { e.preventDefault(); gest = 1; });
+svg.addEventListener("gesturechange", e => { e.preventDefault(); if (wpt.size >= 2) return; if (e.scale / gest > 1.25) { older(); gest = e.scale; } else if (e.scale / gest < 0.8) { newer(); gest = e.scale; } });
+// Touch and mouse: tap a tile to center it; swipe sideways to turn, up for parents, down for the child; pinch open
+// for parents, closed for the child.
+// ---------- dragging the wheel (touch, pen and mouse). The rules (site/README.md, "Gestures"):
+// - what you touch stays under your finger: turning follows the arc, pulling toward the center brings older generations
+//   in, pushing away goes back, and a diagonal does both; close to straight, the small drift to the side is left out;
+// - let go and it carries on a little with the speed it had, then springs to the nearest person; a short flick is enough;
+// - past the end of a line it resists; touching it while it glides catches it, and that touch opens nothing.
+const SLOP = 8, GLIDE = 0.13, SPRING = 13, STEP_AT = 0.2, FLICK = 0.45, RAIL = 18, FREE = 38;   // px · s of travel kept · 1/s · share of a tile that counts as a move · tiles/s that count as a flick · degrees off straight: guided below the first, free above the second
+const wpt = new Map(); let drag = null, wpinch = null, moving = false, gliding = false, frameAt = 0, BYGEN = [], DEEP = {};
+const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+const wOf = g => Math.min(1, 2 ** -(g + 1));                       // the width that goes with a generation at the center
+const mid2 = () => { const [a, b] = [...wpt.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+function indexTree() {              // the people of each generation (in the active branch), and how deep the tree goes behind each
+  BYGEN = []; DEEP = {};
+  for (const n of Object.keys(A).map(Number).filter(okNum).sort((x, y) => y - x)) { (BYGEN[gen(n)] ||= []).push(n); DEEP[n] = Math.max(gen(n), DEEP[2 * n] || 0, DEEP[2 * n + 1] || 0); }
+}
+function polar(x, y) { const F = frame(), q = svg.getBoundingClientRect(), dx = x - q.left - F.cx, dy = F.cy - (y - q.top); return { r: Math.hypot(dx, dy), a: Math.atan2(dx, dy) * 180 / Math.PI, F }; }
+const mids = n => (n - 2 ** gen(n) + 0.5) / 2 ** gen(n);
+const nearest = (list, c) => list?.reduce((m, n) => { const d = Math.abs(wrap(mids(n) - c)); return !m || d < m.d ? { n, d } : m; }, null)?.n;
+// the person to settle on in generation k with the wheel's center at c: along the line that is there, parent by parent,
+// to the nearer one (the father when it is right between them), as far as the line is known
+function lineAt(k, c, d) {
+  let n = nearest(BYGEN[d.k0], c);
+  if (!n) return focus;
+  if (k <= d.k0) return Math.max(2, n >> (d.k0 - Math.max(1, k)));
+  while (gen(n) < k) {
+    const f = 2 * n, m = f + 1, hf = A[f] && okNum(f), hm = A[m] && okNum(m);
+    if (!hf && !hm) break;
+    if (!hf || !hm) { n = hf ? f : m; continue; }
+    const x = wrap(c - mids(n)) * 2 ** gen(n);                    // where in the tile, -0.5 to 0.5
+    n = Math.abs(x) < 0.04 ? (P[A[f].id].sex === "F" ? m : f) : x < 0 ? f : m;
+  }
+  return n;
+}
+const centerAt = (k, d) => d.u - d.a * wOf(k - 2) / 180;             // where the center will be once generation k is in front, holding what was grabbed
+const soft = x => x <= 0 ? x : 0.55 * (1 - 1 / (1 + x * 1.1));       // resistance past the end
+function show(n) { if (n && n !== focus && okNum(n)) { focus = n; drawMini(); } if (!frameAt) frameAt = requestAnimationFrame(() => { frameAt = 0; draw(); }); }
+function sample(d) { const t = performance.now(); d.tr.push({ t, c: view.c, g: view.g }); while (d.tr.length > 2 && t - d.tr[0].t > 90) d.tr.shift(); }
+function speed(d) {                  // of the last moments; a finger that stopped before lifting has none
+  const z = d.tr[d.tr.length - 1], y = d.tr[0], dt = (z?.t - y?.t) / 1000;
+  return dt > 0.012 && performance.now() - z.t < 70 ? { c: wrap(z.c - y.c) / dt, g: (z.g - y.g) / dt } : { c: 0, g: 0 };
+}
+function grabAt(x, y) { const q = polar(x, y), u = view.c + q.a * view.w / 180; return { q, u, a: q.a }; }
+function dragStart(d, x, y) {
+  Object.assign(d, grabAt(x, y), { mode: "drag", g0: view.g, c0: view.c, raw: view.g, k0: gen(focus), f0: focus, vx: 0, vy: 0, turned: 0, px: x, py: y });
+  d.u = ((d.u % 1) + 1) % 1; d.ang = d.a;
+  const t = d.a * 0.6 * Math.PI / 180;                            // "toward the center" for the thumb: between straight down and the true radius
+  d.sin = Math.sin(t); d.cos = Math.cos(t);
+}
+const ramp = x => { const t = Math.max(0, Math.min(1, (x - RAIL) / (FREE - RAIL))); return t * t * (3 - 2 * t); };
+function dragTo(d, x, y) {
+  const dx = x - d.px, dy = d.py - y, q = polar(x, y), reach = Math.min(Math.max(q.r, q.F.H0 + q.F.RW), q.F.H0 + 2.6 * q.F.RW);
+  let da = q.a - d.ang; if (da > 180) da -= 360; else if (da < -180) da += 360;
+  d.px = x; d.py = y; d.ang = q.a;
+  // which way the finger has been going lately decides how much of each motion counts
+  const keep = Math.exp(-Math.hypot(dx, dy) / 45);
+  d.vx = d.vx * keep + dx * d.cos - dy * d.sin; d.vy = d.vy * keep + dx * d.sin + dy * d.cos;
+  const off = Math.atan2(Math.abs(d.vx), Math.abs(d.vy)) * 180 / Math.PI;   // 0 straight in or out, 90 straight round
+  const turn = da * Math.min(1.6, q.r / reach) * ramp(off);
+  d.a += turn; d.turned += turn;
+  move(d, d.raw - (dx * d.sin + dy * d.cos) / q.F.RW * ramp(90 - off));
+}
+function move(d, raw) {
+  const k = Math.max(1, Math.round(raw + 2)), top = gen(lineAt(99, centerAt(k, d), d)) - 2;
+  const want = raw > top ? top + soft(raw - top) : raw < -1 ? -1 - soft(-1 - raw) : raw, jump = want - view.g - (raw - d.raw);
+  view.g = Math.abs(jump) > 0.15 && d.raw !== view.g ? view.g + (want - view.g) * 0.3 : want;    // onto a longer or shorter line: ease, don't leap
+  d.raw = raw; view.w = wOf(view.g); view.c = ((d.u - d.a * view.w / 180) % 1 + 1) % 1;
+  sample(d); show(lineAt(k, centerAt(k, d), d));
+}
+function letGo(d) {
+  moving = false; svg.classList.remove("grabbing");
+  const v = calm?.matches ? { c: 0, g: 0 } : speed(d), tile = 1 / 2 ** d.k0;
+  const g = view.g + Math.max(-0.9, Math.min(0.9, v.g * GLIDE)), far = g - d.g0, near = Math.round(g + 2);
+  const k = Math.max(1, near === d.k0 && Math.abs(far) > STEP_AT ? d.k0 + Math.sign(far) : near);
+  const at = (k === d.k0 ? view.c : centerAt(k, d)) + (d.turned ? Math.max(-0.6 * wOf(k - 2), Math.min(0.6 * wOf(k - 2), v.c * GLIDE)) : 0);
+  let n = lineAt(k, at, d);
+  if (n === d.f0 && k === d.k0 && d.turned) {       // a clear push sideways that had nowhere near to land: the next person that way
+    const gone = wrap(at - d.c0) / tile, fast = Math.abs(v.c) / tile > FLICK;
+    if (Math.abs(gone) > STEP_AT || fast) {
+      const w1 = Math.sign(Math.abs(gone) > STEP_AT ? gone : v.c), list = BYGEN[k].filter(m => m !== d.f0).map(m => [m, ((w1 * (mids(m) - mids(d.f0))) % 1 + 1) % 1]).sort((x, y) => x[1] - y[1]);
+      if (list[0]) n = list[0][0];
+    }
+  }
+  settle(n, v.c, v.g);
+}
+function settle(n, vc = 0, vg = 0) {   // a critically damped spring from where the wheel is, at the speed it has
+  if (!A[n] || !okNum(n)) n = okNum(focus) ? focus : BR.home;
+  if (n !== focus) focus = n;
+  const t = target(n), c0 = wrap(view.c - t.c), g0 = view.g - t.g, t0 = performance.now(), cap = 6 * t.w;
+  vc = Math.max(-cap, Math.min(cap, vc)); vg = Math.max(-9, Math.min(9, vg));
+  cancelAnimationFrame(anim); gliding = true; drawMini();
+  const step = now => {
+    const s = calm?.matches ? 9 : Math.max(0, (now - t0) / 1000), e = Math.exp(-SPRING * s), dc = (c0 + (vc + SPRING * c0) * s) * e, dg = (g0 + (vg + SPRING * g0) * s) * e;
+    if (s > 1.1 || (s > 0.08 && Math.abs(dc) * 180 / t.w < 0.12 && Math.abs(dg) < 0.002)) { view = t; gliding = false; draw(); drawMini(); return; }
+    view = { c: ((t.c + dc) % 1 + 1) % 1, g: t.g + dg, w: wOf(t.g + dg) };
+    draw(); anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
+function tapTile(t) {
+  const n = +t?.dataset?.num;
+  if (n === 1) home();
+  else if (n && A[n] && okNum(n)) { selNum = n; go(n); openPerson(who(n)); }
+}
+svg.addEventListener("pointerdown", e => {
+  if (e.pointerType === "mouse" && e.button) return;
+  wpt.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const caught = gliding;
+  if (wpt.size === 1) drag = { x: e.clientX, y: e.clientY, id: e.pointerId, t: e.target, mode: null, caught, f0: focus, tr: [] };
+  else if (wpt.size === 2 && drag) {  // two fingers: spread to go out along the line between them, pinch to come back
+    cancelAnimationFrame(anim); gliding = false;
+    const m = mid2(); wpinch = { d0: m.d, tr: [] }; dragStart(wpinch, m.x, m.y);
+    drag = null; moving = true;
+  }
+  if (caught) { cancelAnimationFrame(anim); gliding = false; }
+  if (e.pointerType !== "mouse") try { svg.setPointerCapture(e.pointerId); } catch {}
+});
+svg.addEventListener("pointermove", e => {
+  const p = wpt.get(e.pointerId); if (!p) return;
+  p.x = e.clientX; p.y = e.clientY;
+  if (wpinch && wpt.size >= 2) {
+    const m = mid2(), a = polar(m.x, m.y).a; wpinch.turned += a - wpinch.a; wpinch.a = a;
+    move(wpinch, wpinch.g0 + 1.15 * Math.log2(Math.max(0.1, m.d / wpinch.d0))); return;
+  }
+  if (!drag || drag.id !== e.pointerId) return;
+  if (!drag.mode) {
+    if (Math.hypot(p.x - drag.x, p.y - drag.y) < SLOP) return;
+    cancelAnimationFrame(anim); gliding = false; moving = true; svg.classList.add("grabbing");
+    try { svg.setPointerCapture(e.pointerId); } catch {}
+    dragStart(drag, drag.x, drag.y);                             // from where it came down, so nothing is lost to the slop's direction
+    drag.px += (p.x - drag.x) * 0.999; drag.py += (p.y - drag.y) * 0.999; drag.ang = polar(drag.px, drag.py).a;
+    drag.vx = (p.x - drag.x) * drag.cos - (drag.y - p.y) * drag.sin; drag.vy = (p.x - drag.x) * drag.sin + (drag.y - p.y) * drag.cos;
+    const q1 = grabAt(p.x, p.y); drag.u = ((q1.u % 1) + 1) % 1; drag.a = q1.a;
+    return;
+  }
+  dragTo(drag, p.x, p.y);
+});
+function wheelUp(e) {
+  const d = drag, had = wpt.delete(e.pointerId);
+  if (!had) return;
+  if (wpinch) { if (wpt.size < 2) { const z = wpinch; wpinch = null; letGo(z); } return; }
+  if (!d || d.id !== e.pointerId) return;
+  drag = null;
+  if (d.mode) letGo(d);
+  else if (e.type === "pointerup" && !d.caught) tapTile(d.t);
+  else settle(focus);
+}
+svg.addEventListener("pointerup", wheelUp); svg.addEventListener("pointercancel", wheelUp);
+$("mini").addEventListener("click", e => tapTile(e.target));
+window.addEventListener("keydown", e => {
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || e.target.isContentEditable || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (V) {
+    const z = { "+": 1.25, "=": 1.25, "-": 0.8, "_": 0.8 }[e.key];
+    if (e.key === "Escape") closeViewer(); else if (e.key === "ArrowRight") vstep(1); else if (e.key === "ArrowLeft") vstep(-1);
+    else if (z && $("vimg")) zoomAt(z); else if (e.key === "0") fit(); else return;
+    e.preventDefault(); return;
+  }
+  if (e.key === "ArrowUp") older(); else if (e.key === "ArrowDown") newer();
+  else if (e.key === "ArrowLeft") sideways(-1); else if (e.key === "ArrowRight") sideways(1);
+  else if (e.key === "Home") home();
+  else if (e.key === "Escape" && spot && !spot.raise) setSpot(null);
+  else if (e.key === "Escape" && document.body.classList.contains("panel")) closePanel();
+  else if (e.key === "/") { $("q").focus(); }
+  else return;
+  e.preventDefault();
+});
+$("bUp").onclick = older; $("bDown").onclick = newer; $("bL").onclick = () => sideways(-1); $("bR").onclick = () => sideways(1);
+$("bHome").onclick = $("brand").onclick = () => home();
+$("pad").addEventListener("click", e => { const k = e.target.closest("[data-pad]")?.dataset.pad;
+  ({ L: () => sideways(-1), R: () => sideways(1), U: older, D: newer, H: home })[k]?.(); });
+$("bLock").onclick = () => Data.lock();
+// the bottom sheet's handle: tap to grow or shrink it, drag up for more, down to shrink or close
+let grab = null;
+$("panel").addEventListener("pointerdown", e => { const g = e.target.closest(".grab"); if (g) { grab = { y: e.clientY }; try { g.setPointerCapture(e.pointerId); } catch {} } });
+$("panel").addEventListener("pointerup", e => {
+  if (!grab) return; const dy = e.clientY - grab.y, full = document.body.classList.contains("sheetfull"); grab = null;
+  if (dy > 40) full ? document.body.classList.remove("sheetfull") : closePanel();
+  else document.body.classList.toggle("sheetfull", dy < -40 ? true : !full);
+});
+$("panel").addEventListener("pointercancel", () => { grab = null; });
+$("hint").querySelector("button").onclick = () => { document.body.classList.add("nohint"); store.set("wheel.nohint", "1"); };
+document.body.addEventListener("click", e => {
+  const link = e.target.closest("a[href]");
+  if (link) {
+    if (VAULT && link.dataset.href) {
+      e.preventDefault();
+      const w = window.open("", "_blank");
+      Data.url(link.dataset.href).then(u => {
+        if (w) w.location.href = u;
+        else { const a = document.createElement("a"); a.href = u; a.target = "_blank"; a.rel = "noopener"; a.click(); }
+      }, () => { if (w) w.close(); });
+    }
+    return;   // links (open the file, see it online) do only what they say
+  }
+  const t = e.target.closest("[data-pid],[data-src],[data-rec],[data-ed],[data-portrait],[data-close],[data-vclose],[data-vstep],[data-vjump],[data-focus],[data-key],[data-unspot],[data-story],[data-stspot],[data-spic]"); if (!t) return;
+  const d = t.dataset;
+  if (d.key) setSpot(KEYS[d.key]);
+  else if (d.unspot) setSpot(null);
+  else if (d.stspot) spotStory(D.stories.find(x => x.id === d.stspot));
+  else if (d.story) openStory(d.story, d.list || null);
+  else if (d.spic !== undefined) openViewer(cur.items, +d.spic);
+  else if (d.pid && !okId(d.pid)) return;
+  else if (d.pid) { if (V) closeViewer(); if (spot?.raise) setSpot(null); showPerson(d.pid); }
+  else if (d.ed !== undefined) openViewer(cur.eds, +d.ed);
+  else if (d.portrait) openPortrait();
+  else if (d.focus) go(+d.focus);
+  else if (d.rec !== undefined) openItem(+d.rec);
+  else if (d.src) { const i = cur ? cur.items.findIndex(x => x.s === d.src) : -1; i >= 0 ? openViewer(cur.items, i) : openViewer([{ s: d.src }], 0); }
+  else if (d.close) closePanel();
+  else if (d.vclose) closeViewer();
+  else if (d.vstep) vstep(+d.vstep);
+  else if (d.vjump !== undefined) { V.ri = +d.vjump; V.pi = 0; renderViewer(); }
+});
+
+// ---------- search: anyone in the tree, direct ancestors first
+let hits = [], hi = 0;
+function search(qs) {
+  const toks = qs.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!toks.length) return [];
+  return Object.entries(P).filter(([id, p]) => okId(id) && toks.every(t => p.find.includes(t)))
+    .sort(([, a], [, b]) => (!a.num - !b.num) || (!a.n.toLowerCase().startsWith(toks[0]) - !b.n.toLowerCase().startsWith(toks[0])) || a.n.localeCompare(b.n)).slice(0, 14);
+}
+function showHits() {
+  $("results").innerHTML = hits.map(([id, p], i) => `<div data-hit="${id}" class="${i === hi ? "on" : ""}"><b>${esc(p.n)}</b><small>${esc(p.yrs || "dates unknown")} · ${p.num ? `generation ${p.gen}${p.q ? `, ${esc(p.q)}'s line` : ""}` : p.rel ? `${esc(p.rel.how)} ${esc(P[p.rel.to].n)}` : "not in the direct line"}</small></div>`).join("") ||
+    `<div class="note" style="cursor:default">No one by that name.</div>`;
+  $("results").classList.toggle("open", !!$("q").value.trim());
+}
+function pick(id) { $("q").value = ""; $("results").classList.remove("open"); $("q").blur(); showPerson(id); }
+$("q").addEventListener("input", e => { hits = search(e.target.value); hi = 0; showHits(); });
+$("q").addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { hi = (hi + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % Math.max(1, hits.length); showHits(); $("results").querySelector(".on")?.scrollIntoView({ block: "nearest" }); e.preventDefault(); }
+  else if (e.key === "Enter" && hits[hi]) pick(hits[hi][0]);
+  else if (e.key === "Escape") { $("q").value = ""; $("results").classList.remove("open"); $("q").blur(); }
+});
+$("q").addEventListener("blur", () => setTimeout(() => $("results").classList.remove("open"), 150));
+$("results").addEventListener("pointerdown", e => { const t = e.target.closest("[data-hit]"); if (t) { e.preventDefault(); pick(t.dataset.hit); } });
+
+let rz = 0;   // redraw whenever the wheel's box changes: window resizes and the panel's slide
+new ResizeObserver(() => { Fcache = null; cancelAnimationFrame(rz); rz = requestAnimationFrame(() => { if (D) { draw(); drawMini(); } }); }).observe(svg);
+window.addEventListener("resize", () => { Fcache = null; if (V) fit(); });
+
+if (store.get("wheel.nohint")) document.body.classList.add("nohint");
+function start(d, branch = "") {
+  D = d; P = d.people; S = d.sources || {}; A = d.ahnen; maxGen = d.maxGen;
+  ST_BY = new Map((d.stories || []).map(s => [s.id, s]));
+  document.title = $("brand").textContent = d.title.join(" ");
+  for (const [n, x] of Object.entries(A)) NUM[x.id] ??= +n;
+  PAL = d.palette || {};
+  if (branch) setBranch(branch);
+  indexTree();
+  buildKey();
+  focus = BR ? BR.home : 2; view = target(focus); draw(); drawMini();
+  if (BR) { selNum = P[BR.pid]?.num || focus; openPerson(BR.pid); document.title = $("brand").textContent = `The family of ${BR.label}`; }
+  const h = BR ? "" : location.hash.slice(1);             // #<person id> opens that person; #n37 centers ancestor 37
+  if (P[h]) { const n = P[h].num || (P[h].rel && P[P[h].rel.to]?.num); if (n) { focus = n; view = target(n); selNum = n; } openPerson(h); drawMini(); }
+  else if (/^n\d+$/.test(h) && A[h.slice(1)]) { focus = +h.slice(1); view = target(focus); draw(); drawMini(); }
+}
+function askPassword(notice = "") {         // the published copy: wait for the right password
+  return new Promise(done => {
+    const f = $("lockf"), m = $("lockmsg"), b = $("unlock");
+    $("lock").hidden = false; m.className = ""; m.textContent = notice; $("pw").focus();
+    f.onsubmit = async e => {
+      e.preventDefault();
+      if (!$("pw").value) return;
+      b.disabled = true; m.className = "busy"; m.textContent = "Unlocking…";
+      try { const b = await Data.unlock($("pw").value, $("remember").checked); $("lock").hidden = true; $("pw").value = ""; m.textContent = ""; done(b); }
+      catch (err) { m.className = ""; m.textContent = err?.name === "OperationError" ? "That password didn't work." : `Couldn't open the wheel: ${err.message || err}`; $("pw").select(); }
+      finally { b.disabled = false; }
+    };
+  });
+}
+(async () => {
+  let branch = "", badCode = false;
+  if (VAULT) {
+    $("bLock").hidden = false;
+    if (!window.crypto?.subtle) throw new Error("this page needs a secure (https) connection");
+    const code = location.hash.match(/^#k=([A-Za-z0-9_-]{16,64})$/)?.[1];
+    if (code) {                                       // a QR code from a book or poster: opens its branch with no typing
+      history.replaceState(null, "", location.pathname + location.search);    // the secret leaves the address bar
+      branch = await Data.unlockCode(code).catch(() => null);
+      if (branch === null) badCode = true;
+    }
+    if (branch === null || !code) branch = await Data.resume();
+    if (branch === null) branch = await askPassword(badCode ? "That code didn't work — try your password instead." : "");
+  }
+  const initial = Data.has("build/viewer-shell.json") ? await Data.json("build/viewer-shell.json").catch(() => Data.json("build/viewer.json")) : await Data.json("build/viewer.json");
+  start(initial, branch || "");
+})().catch(err => document.body.insertAdjacentHTML("beforeend", `<p style="position:fixed;top:80px;left:20px;right:20px;font:14px system-ui">Could not load the family data. ${VAULT ? "" : "Run <code>uv run tools/ft.py build</code> and serve the repo root. "}(${esc(err.message || err)})</p>`));
+</script>
+</body>
+</html>
